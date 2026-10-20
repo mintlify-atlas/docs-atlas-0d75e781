@@ -1,5 +1,5 @@
 ---
-title: "Batch Observations with DataArrays"
+title: "Batch Ingest Observations with the DataArray Extension"
 sidebarTitle: "Data Arrays"
 description: "Use the SensorThings DataArray extension to submit multiple Observations in one HTTP POST, cutting network overhead when ingesting large sensor datasets."
 ---
@@ -17,11 +17,16 @@ The SensorThings API DataArray extension lets you pack many `Observation` values
   </Card>
 </CardGroup>
 
-Both classes are accessible from the top-level `frost_sta_client` namespace:
+Both classes are exported from the top-level `frost_sta_client` namespace, so both of the following import styles work:
 
 ```python
 import frost_sta_client as fsc
 
+# Short form — recommended (exported directly from __init__.py)
+dav = fsc.DataArrayValue()
+dad = fsc.DataArrayDocument()
+
+# Long form — also valid
 dav = fsc.model.ext.data_array_value.DataArrayValue()
 dad = fsc.model.ext.data_array_document.DataArrayDocument()
 ```

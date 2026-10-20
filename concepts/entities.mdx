@@ -1,5 +1,5 @@
 ---
-title: "Entity Classes and the Python Data Model"
+title: "FROST Python Client: Entity Classes and Data Model"
 sidebarTitle: "Entities"
 description: "FROST Python Client entities inherit from a common Entity base. Learn typed properties, JSON serialization, related-entity references, and ID handling."
 ---
@@ -67,7 +67,7 @@ ds = fsc.Datastream(
     thing=thing,
     sensor=sensor,
     observed_property=op,
-    unit_of_measurement=fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+    unit_of_measurement=fsc.UnitOfMeasurement(
         name="degree Celsius", symbol="°C",
         definition="http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
     )

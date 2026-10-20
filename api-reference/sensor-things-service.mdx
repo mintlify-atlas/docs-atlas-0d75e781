@@ -1,5 +1,5 @@
 ---
-title: "SensorThingsService API Reference"
+title: "SensorThingsService – FROST Python Client Reference"
 sidebarTitle: "SensorThingsService"
 description: "Complete API reference for SensorThingsService — the central class for connecting to FROST servers, accessing entity DAOs, and performing CRUD operations."
 ---
@@ -8,7 +8,7 @@ description: "Complete API reference for SensorThingsService — the central cla
 
 ## Class
 
-```
+```text
 frost_sta_client.service.sensorthingsservice.SensorThingsService
 ```
 
@@ -65,7 +65,7 @@ service = fsc.SensorThingsService(
 ### `url`
 
 <ResponseField name="url" type="furl">
-  The parsed endpoint URL. The setter rejects `None` values and raises `ValueError` for unparseable strings; the getter always returns a `furl` object so you can read `.url` for the plain string form.
+  The parsed endpoint URL. Setting to `None` stores `None` directly; passing a non-`None` string that cannot be parsed raises `ValueError`. The getter always returns a `furl` object (or `None`) — use `.url` on the returned object for the plain string form.
 </ResponseField>
 
 ### `auth_handler`
@@ -180,7 +180,7 @@ observations = (
 ### `multi_datastreams()`
 
 <ResponseField name="return" type="MultiDatastreamDao">
-  Returns a `MultiDatastreamDao` for accessing `MultiDatastream` entities (OGC SensorThings API Part 2 — Tasking Core extension).
+  Returns a `MultiDatastreamDao` for accessing `MultiDatastream` entities (OGC SensorThings API MultiDatastream extension).
 </ResponseField>
 
 ---

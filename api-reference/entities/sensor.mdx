@@ -1,5 +1,5 @@
 ---
-title: "Sensor Entity API Reference"
+title: "frost_sta_client Sensor — OGC SensorThings API Reference"
 sidebarTitle: "Sensor"
 description: "API reference for the Sensor entity — an instrument measuring a physical phenomenon. Covers properties, metadata encoding, and datastream navigation."
 ---
@@ -154,11 +154,12 @@ sensor = Sensor(
 ```
 
 ```python Create a Sensor via service and link to a Datastream
-import frost_sta_client
+import frost_sta_client as fsc
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-sensor = frost_sta_client.Sensor(
+sensor = fsc.Sensor(
     name='SHT31 Humidity Sensor',
     description='Sensirion SHT31 digital humidity and temperature sensor.',
     encoding_type='text/html',
@@ -168,15 +169,10 @@ service.create(sensor)
 print(sensor.id)  # set by server after POST
 
 # Reuse when building a Datastream
-from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
-from frost_sta_client.model.datastream import Datastream
-from frost_sta_client.model.thing import Thing
-from frost_sta_client.model.observedproperty import ObservedProperty
-
 thing = service.things().find(1)
 op = service.observed_properties().find(1)
 
-ds = frost_sta_client.Datastream(
+ds = fsc.Datastream(
     name='Relative Humidity',
     description='Outdoor humidity measured by SHT31',
     observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
@@ -189,9 +185,9 @@ service.create(ds)
 ```
 
 ```python Navigate to all Datastreams for a Sensor
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 sensor = service.sensors().find(3)
 
 for ds in sensor.get_datastreams().query().list().entities:

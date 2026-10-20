@@ -1,5 +1,5 @@
 ---
-title: "TaskingCapability and Task Entity API Reference"
+title: "TaskingCapability & Task — frost_sta_client Tasking API"
 sidebarTitle: "Tasking"
 description: "API reference for TaskingCapability and Task — SensorThings Tasking extension entities for issuing commands to actuators and tracking execution."
 ---
@@ -212,14 +212,14 @@ tc = TaskingCapability(
 ```
 
 ```python Create TaskingCapability and Task via service
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
 thing = service.things().find(1)
 actuator = service.actuators().find(1)
 
-tc = frost_sta_client.TaskingCapability(
+tc = fsc.TaskingCapability(
     name='Set Fan Speed',
     description='Sets the supply fan speed as a percentage of maximum rated speed.',
     tasking_parameters={
@@ -237,7 +237,7 @@ service.create(tc)
 print(tc.id)
 
 # Submit a Task against this TaskingCapability
-task = frost_sta_client.Task(
+task = fsc.Task(
     tasking_parameters={'speed': 75},
     tasking_capability=tc
 )
@@ -247,9 +247,9 @@ print(task.creation_time)
 ```
 
 ```python Query all Tasks for a TaskingCapability
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 tc = service.tasking_capabilities().find(3)
 
 tasks = tc.get_tasks().query().order_by('creationTime desc').top(10).list()
@@ -258,14 +258,14 @@ for task in tasks.entities:
 ```
 
 ```python Create a Task referencing a TaskingCapability by id only
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
 # Reference existing capability without fetching full entity
-tc_ref = frost_sta_client.TaskingCapability(id=5)
+tc_ref = fsc.TaskingCapability(id=5)
 
-task = frost_sta_client.Task(
+task = fsc.Task(
     tasking_parameters={'duration': 120},
     tasking_capability=tc_ref
 )

@@ -1,14 +1,14 @@
 ---
-title: "AuthHandler API Reference"
+title: "AuthHandler – HTTP Basic Auth for FROST Python Client"
 sidebarTitle: "AuthHandler"
-description: "API reference for AuthHandler, which wraps HTTP Basic Auth credentials and integrates with SensorThingsService to authenticate requests to protected FROST servers."
+description: "API reference for AuthHandler — wraps HTTP Basic Auth credentials and integrates with SensorThingsService to authenticate requests to FROST servers."
 ---
 
 `AuthHandler` is a thin wrapper around HTTP Basic Auth credentials. When passed to a `SensorThingsService` instance it ensures that every outbound HTTP request carries the appropriate `Authorization: Basic …` header. This is the standard approach for connecting the FROST Python Client to password-protected FROST Server deployments.
 
 ## Class
 
-```
+```text
 frost_sta_client.service.auth_handler.AuthHandler
 ```
 

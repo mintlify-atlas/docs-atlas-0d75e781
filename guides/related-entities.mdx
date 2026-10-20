@@ -1,5 +1,5 @@
 ---
-title: "Traverse SensorThings Entity Relationships"
+title: "Traverse and Query SensorThings Entity Relationships"
 sidebarTitle: "Related Entities"
 description: "Use get_* helpers to navigate entity relationships — from Datastreams to Observations, or Things to Locations — with automatic server-side URL scoping."
 ---
@@ -103,14 +103,11 @@ prop = service.observed_properties().find(2)
 streams = prop.get_datastreams().query().list()
 ```
 
-```python Datastream → Sensor / Thing / ObservedProperty
+```python Datastream → Observations
 ds = service.datastreams().find(7)
 
-# GET /Datastreams(7)/Sensor
-sensor = ds.get_sensor().query().list()
-
-# GET /Datastreams(7)/Thing
-thing = ds.get_thing().query().list()
+# GET /Datastreams(7)/Observations
+obs_list = ds.get_observations().query().list()
 ```
 
 </CodeGroup>
@@ -169,8 +166,10 @@ for thing in things:
 
 <Note>
   Expanded attributes are only populated when the `expand()` option was included
-  in the query. Accessing `ds.sensor` without having expanded it will return
-  `None` — use `get_sensor().query().list()` for a live fetch.
+  in the query. For example, accessing `ds.sensor` without having expanded it will
+  return `None`. To retrieve related singular resources such as the Sensor or Thing
+  linked to a Datastream, use `expand()` in the query — these entities do not have
+  standalone `get_*()` traversal methods.
 </Note>
 
 ---

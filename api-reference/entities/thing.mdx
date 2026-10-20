@@ -1,5 +1,5 @@
 ---
-title: "Thing Entity API Reference"
+title: "frost_sta_client Thing — OGC SensorThings API Reference"
 sidebarTitle: "Thing"
 description: "API reference for the Thing entity — a physical or virtual device in the SensorThings model. Covers all properties, collections, and navigation methods."
 ---
@@ -179,11 +179,11 @@ thing = Thing(
 ```
 
 ```python Create via service (POST to server)
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-thing = frost_sta_client.Thing(
+thing = fsc.Thing(
     name='Rooftop Weather Station',
     description='Outdoor meteorological sensor array on Building A roof.',
     properties={'serialNumber': 'WX-9000-A', 'vendor': 'WeatherCo'}
@@ -194,9 +194,9 @@ print(thing.self_link)
 ```
 
 ```python Navigate to Datastreams
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
 # Fetch an existing Thing by id
 thing = service.things().find(1)

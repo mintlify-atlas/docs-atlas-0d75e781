@@ -1,5 +1,5 @@
 ---
-title: "ObservedProperty Entity API Reference"
+title: "ObservedProperty — frost_sta_client SensorThings API Ref"
 sidebarTitle: "ObservedProperty"
 description: "API reference for the ObservedProperty entity — the physical phenomenon measured by a Datastream, identified by name, definition URI, and description."
 ---
@@ -124,11 +124,11 @@ op = ObservedProperty(
 ```
 
 ```python Create via service
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-op = frost_sta_client.ObservedProperty(
+op = fsc.ObservedProperty(
     name='Relative Humidity',
     definition='http://vocab.nerc.ac.uk/collection/P07/current/CFSN0430/',
     description='Ratio of the partial pressure of water vapour to the saturation vapour pressure at the same temperature.',
@@ -140,9 +140,9 @@ print(op.self_link)
 ```
 
 ```python Query all Datastreams for a given ObservedProperty
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 op = service.observed_properties().find(2)
 
 datastreams = op.get_datastreams().query().list()

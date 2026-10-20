@@ -1,5 +1,5 @@
 ---
-title: "Actuator Entity API Reference"
+title: "frost_sta_client Actuator — SensorThings Tasking API Ref"
 sidebarTitle: "Actuator"
 description: "API reference for the Actuator entity — part of the SensorThings Tasking extension, representing a device that can receive and execute tasking commands."
 ---
@@ -140,11 +140,11 @@ actuator = Actuator(
 ```
 
 ```python Create via service
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-actuator = frost_sta_client.Actuator(
+actuator = fsc.Actuator(
     name='LED Dimmer Panel 3B',
     description='PWM-based LED dimmer for ceiling lights in corridor 3B.',
     encoding_type='application/json',
@@ -161,9 +161,9 @@ print(actuator.self_link)
 ```
 
 ```python Navigate to TaskingCapabilities
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 actuator = service.actuators().find(2)
 
 for tc in actuator.get_tasking_capabilities().query().list().entities:

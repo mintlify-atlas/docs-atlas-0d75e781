@@ -1,5 +1,5 @@
 ---
-title: "Location Entity API Reference"
+title: "frost_sta_client Location — OGC SensorThings API Reference"
 sidebarTitle: "Location"
 description: "API reference for the Location entity — a geographic position associated with a Thing. Supports GeoJSON Point, Polygon, and LineString geometries."
 ---
@@ -157,11 +157,11 @@ location = Location(
 
 ```python Create Location and attach to a Thing via service
 import geojson
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-location = frost_sta_client.Location(
+location = fsc.Location(
     name='Roof Deck',
     description='Weather station mounting point on building roof',
     encoding_type='application/geo+json',
@@ -169,7 +169,7 @@ location = frost_sta_client.Location(
 )
 service.create(location)
 
-thing = frost_sta_client.Thing(
+thing = fsc.Thing(
     name='Rooftop Weather Station',
     description='Primary outdoor met sensor',
     locations=[location]

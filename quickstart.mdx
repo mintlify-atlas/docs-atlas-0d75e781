@@ -1,7 +1,7 @@
 ---
-title: "Get Started with the FROST Python Client"
+title: "FROST Python Client Quickstart: Your First SensorThings App"
 sidebarTitle: "Quickstart"
-description: "Connect to a FROST SensorThings server, create your first entities, and query sensor observations in under five minutes."
+description: "Connect to a FROST SensorThings server, create your first Thing, Sensor, Datastream, and Observation, then run a filtered query to retrieve results."
 ---
 
 This guide walks you through installing `frost_sta_client`, connecting to a FROST-Server instance, creating the full chain of SensorThings entities (Thing → Location → Sensor → ObservedProperty → Datastream → Observation), and running a filtered query to retrieve results. By the end you will have a working end-to-end example you can adapt for your own IoT project.
@@ -30,7 +30,7 @@ If you do not already have a SensorThings API server to connect to, you can spin
 docker compose -f frost_server/docker-compose.yaml up -d
 ```
 
-The server will be available at `http://localhost:8080/FROST-Server/v1.1` once both the `web` and `database` containers report as healthy (the database performs a `pg_isready` health check every two seconds). Basic authentication is enabled by default — the compose file sets the username and password both to the credentials defined in the `environment` block.
+The server will be available at `http://localhost:8080/FROST-Server/v1.1` once both the `web` and `database` containers report as healthy (the database performs a `pg_isready` health check every two seconds). Basic authentication is enabled by default — FROST-Server's `BasicAuthProvider` automatically provisions an `admin` user with the password `admin` on first startup.
 
 <Note>
   The compose file enables HTTP CORS for all origins (`http_cors_allowed_origins=*`), making it convenient to call the API from browser-based tools. MultiDatastreams are disabled by default; set `plugins_multiDatastream.enable=true` to turn them on.

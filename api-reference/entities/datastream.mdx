@@ -1,5 +1,5 @@
 ---
-title: "Datastream Entity API Reference"
+title: "frost_sta_client Datastream — SensorThings API Reference"
 sidebarTitle: "Datastream"
 description: "API reference for the Datastream entity — links a Thing, Sensor, and ObservedProperty into a typed measurement channel with a unit of measurement."
 ---
@@ -202,16 +202,16 @@ ds = Datastream(
 ```
 
 ```python Create and persist via service
-import frost_sta_client
+import frost_sta_client as fsc
 from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
 thing = service.things().find(1)
 sensor = service.sensors().find(1)
 op = service.observed_properties().find(1)
 
-ds = frost_sta_client.Datastream(
+ds = fsc.Datastream(
     name='Wind Speed',
     description='Horizontal wind speed at 10 m above ground level.',
     observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
@@ -230,9 +230,9 @@ print(ds.id)
 ```
 
 ```python Retrieve latest observations via navigation
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 ds = service.datastreams().find(5)
 
 observations = (

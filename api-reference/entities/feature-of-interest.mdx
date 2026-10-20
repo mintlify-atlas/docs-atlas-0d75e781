@@ -1,5 +1,5 @@
 ---
-title: "FeatureOfInterest Entity API Reference"
+title: "FeatureOfInterest — frost_sta_client SensorThings API"
 sidebarTitle: "FeatureOfInterest"
 description: "API reference for the FeatureOfInterest entity — the real-world subject of an Observation, typically a geographic location or area sampled by a sensor."
 ---
@@ -122,11 +122,11 @@ foi = FeatureOfInterest(
 
 ```python Create via service and attach to Observations
 import geojson
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
-foi = frost_sta_client.FeatureOfInterest(
+foi = fsc.FeatureOfInterest(
     name='Forest Canopy Plot B3',
     description='A 20 m × 20 m forest plot used for microclimate monitoring.',
     encoding_type='application/geo+json',
@@ -139,7 +139,7 @@ foi = frost_sta_client.FeatureOfInterest(
 service.create(foi)
 
 ds = service.datastreams().find(3)
-obs = frost_sta_client.Observation(
+obs = fsc.Observation(
     phenomenon_time='2024-07-01T08:00:00Z',
     result=19.3,
     datastream=ds,
@@ -165,9 +165,9 @@ foi = FeatureOfInterest(
 ```
 
 ```python Navigate to all Observations for a FeatureOfInterest
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 foi = service.features_of_interest().find(7)
 
 obs_list = foi.get_observations().query().top(50).list()

@@ -1,7 +1,7 @@
 ---
-title: "EntityList API Reference"
+title: "EntityList: Paginated Entity Collection API Reference"
 sidebarTitle: "EntityList"
-description: "API reference for EntityList — paginated collection returned by query.list(). Auto-fetches next pages during iteration and supports progress callbacks."
+description: "Paginated entity collection returned by query.list(). Transparently fetches next pages during iteration and supports progress callbacks."
 ---
 
 `EntityList` is the paginated collection type returned by every `.list()` call on a query object. When a FROST server responds with a large result set it splits the data into pages and includes a `@iot.nextLink` URL for the next chunk. `EntityList` tracks that link and, when you iterate with a `for` loop or call `next()`, it transparently fetches subsequent pages so your code never has to manage pagination manually. An optional callback/step-size pair lets you monitor loading progress on long result sets.
@@ -130,6 +130,20 @@ entity_list.__getstate__() → list
 ```
 
 Returns a plain Python list where each element is the `dict` produced by calling `entity.__getstate__()` on the corresponding entity. Used by `jsonpickle` during serialization.
+
+---
+
+### `__setstate__(state)`
+
+```python
+entity_list.__setstate__(state: dict) → None
+```
+
+Minimal deserialization stub. In the current implementation this method only attempts to read the next-link from the state and does not restore entity data. It is invoked internally by `jsonpickle` and is not intended for direct use.
+
+<Warning>
+  `__setstate__` in the current release is a minimal placeholder. Do not rely on it to fully restore an `EntityList` from a serialized state.
+</Warning>
 
 ## Iteration Behaviour
 

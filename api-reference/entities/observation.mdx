@@ -1,5 +1,5 @@
 ---
-title: "Observation Entity API Reference"
+title: "frost_sta_client Observation — SensorThings API Reference"
 sidebarTitle: "Observation"
 description: "API reference for the Observation entity — a single measurement tied to a Datastream. Documents phenomenon time, result types, and quality metadata."
 ---
@@ -165,12 +165,12 @@ obs = Observation(
 ```
 
 ```python Create and persist via service
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 ds = service.datastreams().find(5)
 
-obs = frost_sta_client.Observation(
+obs = fsc.Observation(
     phenomenon_time='2024-06-15T09:30:00Z',
     result=21.4,
     datastream=ds
@@ -212,9 +212,9 @@ obs = Observation(
 ```
 
 ```python Batch-create observations
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 ds = service.datastreams().find(5)
 
 readings = [
@@ -223,7 +223,7 @@ readings = [
     ('2024-06-15T10:20:00Z', 20.8),
 ]
 for ts, val in readings:
-    obs = frost_sta_client.Observation(
+    obs = fsc.Observation(
         phenomenon_time=ts,
         result=val,
         datastream=ds

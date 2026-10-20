@@ -1,7 +1,7 @@
 ---
-title: "DataArrayValue and DataArrayDocument API Reference"
+title: "DataArray Classes: DataArrayValue and DataArrayDocument"
 sidebarTitle: "Data Array"
-description: "API reference for DataArrayValue and DataArrayDocument — batch-create multiple Observations in one HTTP POST using the SensorThings DataArray extension."
+description: "Batch-create Observations in one HTTP POST using the SensorThings DataArray extension. DataArrayValue collects per-datastream observations."
 ---
 
 The SensorThings DataArray extension allows you to submit many `Observation` records in a single HTTP POST request, dramatically reducing round-trip overhead when ingesting high-frequency sensor data. The `frost_sta_client` implementation splits this into two cooperating classes: `DataArrayValue` collects observations for a single `Datastream`, and `DataArrayDocument` wraps one or more `DataArrayValue` objects into the envelope that `service.observations().create()` sends to the server.
@@ -34,8 +34,8 @@ Creates an empty `DataArrayValue`. No arguments are accepted. Set `.datastream` 
   Alternative to `datastream` for batches targeting a `MultiDatastream`. Set this instead of `datastream` when posting to a multi-datastream endpoint.
 </ResponseField>
 
-<ResponseField name="components" type="set of DataArrayValue.Property">
-  Controls which observation fields are included in the data array. Assigning a set of `DataArrayValue.Property` enum values builds the internal `VisibleProperties` object and populates the `_components` string list used in serialization. **Must be set before the first call to `add_observation()`** — assigning `components` when `data_array` already has entries raises `ValueError`.
+<ResponseField name="components" type="iterable of DataArrayValue.Property">
+  Controls which observation fields are included in the data array. Assigning an iterable of `DataArrayValue.Property` enum values (e.g. a `set` or `list`) builds the internal `VisibleProperties` object and populates the `_components` string list used in serialization. **Must be set before the first call to `add_observation()`** — assigning `components` when `data_array` already has one or more entries raises `ValueError`.
 </ResponseField>
 
 <ResponseField name="data_array" type="list">
@@ -98,6 +98,10 @@ Serializes the object to a plain `dict` suitable for `jsonpickle` encoding. The 
     "dataArray": [[...], [...], ...]
 }
 ```
+
+<Warning>
+  The current implementation always reads `self.datastream.id` to build the payload key `"Datastream"`. If you have only set `multi_datastream` (and not `datastream`), calling `__getstate__()` raises an `AttributeError`. Multi-datastream serialization is not yet handled in this method.
+</Warning>
 
 ### Usage Example
 

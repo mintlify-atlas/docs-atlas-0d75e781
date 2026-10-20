@@ -1,5 +1,5 @@
 ---
-title: "MultiDatastream Entity API Reference"
+title: "MultiDatastream — frost_sta_client SensorThings API Ref"
 sidebarTitle: "MultiDatastream"
 description: "API reference for the MultiDatastream entity — groups multiple ObservedProperties into one datastream, enabling multi-valued vector sensor observations."
 ---
@@ -198,10 +198,10 @@ mds = MultiDatastream(
 ```
 
 ```python Create via service and post observations
-import frost_sta_client
+import frost_sta_client as fsc
 from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 
 OM_MEASUREMENT = 'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement'
 
@@ -210,7 +210,7 @@ sensor = service.sensors().find(2)
 speed_op = service.observed_properties().find(3)
 direction_op = service.observed_properties().find(4)
 
-mds = frost_sta_client.MultiDatastream(
+mds = fsc.MultiDatastream(
     name='Wind Vector',
     description='Hourly average wind speed and direction.',
     observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_ComplexObservation',
@@ -226,7 +226,7 @@ mds = frost_sta_client.MultiDatastream(
 service.create(mds)
 
 # Each observation result must be a list with one value per component
-obs = frost_sta_client.Observation(
+obs = fsc.Observation(
     phenomenon_time='2024-06-15T12:00:00Z',
     result=[4.7, 270.0],   # [speed m/s, direction °]
     multi_datastream=mds
@@ -235,9 +235,9 @@ service.create(obs)
 ```
 
 ```python Query observations for a MultiDatastream
-import frost_sta_client
+import frost_sta_client as fsc
 
-service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+service = fsc.SensorThingsService('https://example.org/FROST-Server/v1.1')
 mds = service.multi_datastreams().find(2)
 
 obs_list = mds.get_observations().query().order_by('phenomenonTime desc').top(5).list()

@@ -1,7 +1,7 @@
 ---
-title: "UnitOfMeasurement API Reference"
+title: "UnitOfMeasurement: Unit Value Object for Datastreams"
 sidebarTitle: "UnitOfMeasurement"
-description: "API reference for UnitOfMeasurement — a value object used in Datastream to specify the unit of measured values, including name, symbol, and definition URI."
+description: "Value object used in Datastream to specify the unit of a measured value, with name, symbol, and definition URI for serialization."
 ---
 
 `UnitOfMeasurement` is a lightweight value object that captures the three pieces of metadata the SensorThings API requires for every `Datastream`'s unit: a human-readable name, a concise symbol, and a definition URI that points to a canonical vocabulary entry. It has no behaviour of its own beyond serialization — it is constructed once, assigned to `Datastream.unit_of_measurement`, and then serialized as part of that entity's payload.

@@ -1,5 +1,5 @@
 ---
-title: "OGC SensorThings API Entity Model Explained"
+title: "SensorThings API Entity Model: Twelve Types Explained"
 sidebarTitle: "Data Model"
 description: "Understand the twelve OGC SensorThings entity types — Things, Datastreams, Observations, and more — and how they relate in FROST Python Client."
 ---
@@ -123,7 +123,7 @@ Navigation links follow a `ParentType(id)/ChildCollection` URL pattern. For exam
 ```python
 import frost_sta_client as fsc
 
-uom = fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+uom = fsc.UnitOfMeasurement(
     name="degree Celsius",
     symbol="°C",
     definition="http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
