@@ -1,0 +1,158 @@
+---
+title: "Authenticate with a FROST Server Using BasicAuth"
+sidebarTitle: "Authentication"
+description: "Configure HTTP Basic Auth and HTTP proxy settings for the FROST Python Client using AuthHandler and the proxies parameter on SensorThingsService."
+---
+
+By default the FROST Python Client sends unauthenticated HTTP requests. When your FROST Server is configured with an authentication provider — such as the `BasicAuthProvider` — you must supply credentials before making any request. The client provides a dedicated `AuthHandler` class that wraps `requests.auth.HTTPBasicAuth` and a `proxies` parameter for routing traffic through an HTTP proxy.
+
+## AuthHandler and Basic Auth
+
+Create an `AuthHandler` instance with your username and password, then pass it to `SensorThingsService` via the `auth_handler` keyword argument. Every subsequent request made through that service instance will include an HTTP `Authorization: Basic …` header.
+
+```python
+import frost_sta_client as fsc
+
+auth = fsc.AuthHandler(username="admin", password="admin")
+
+service = fsc.SensorThingsService(
+    "https://example.com/FROST-Server/v1.1",
+    auth_handler=auth,
+)
+
+# All requests from this point forward carry the Basic Auth header
+things = service.things().query().list()
+```
+
+### How it works internally
+
+`AuthHandler.add_auth_header()` returns a `requests.auth.HTTPBasicAuth` object. The service passes this to `requests.request()` as the `auth` keyword argument:
+
+```python
+# Simplified view of SensorThingsService.execute()
+response = requests.request(
+    method,
+    url,
+    auth=self.auth_handler.add_auth_header(),  # HTTPBasicAuth(username, password)
+    proxies=self.proxies,
+    **kwargs,
+)
+```
+
+When `auth_handler` is `None` (the default), the `auth` argument is omitted entirely and requests are sent without credentials.
+
+<Note>
+  Passing anything other than an `AuthHandler` instance to the `auth_handler`
+  parameter raises a `ValueError`. The setter validates the type before
+  accepting the value.
+</Note>
+
+---
+
+## Unauthenticated access
+
+If your FROST Server does not require authentication, simply omit the `auth_handler` argument (or pass `None` explicitly):
+
+```python
+# No credentials — works for publicly accessible FROST Servers
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+# Equivalent explicit form
+service = fsc.SensorThingsService(
+    "https://example.com/FROST-Server/v1.1",
+    auth_handler=None,
+)
+```
+
+---
+
+## HTTP proxy support
+
+Pass a `proxies` dictionary to `SensorThingsService` to route all requests through an HTTP or HTTPS proxy. The dictionary is forwarded directly to `requests.request()` using the standard `requests` proxy format.
+
+```python
+proxies = {
+    "http":  "http://proxy.corp.example.com:8080",
+    "https": "http://proxy.corp.example.com:8080",
+}
+
+service = fsc.SensorThingsService(
+    "https://example.com/FROST-Server/v1.1",
+    proxies=proxies,
+)
+```
+
+You can combine both `auth_handler` and `proxies`:
+
+```python
+auth = fsc.AuthHandler(username="admin", password="secret")
+
+proxies = {
+    "http":  "http://proxy.corp.example.com:3128",
+    "https": "http://proxy.corp.example.com:3128",
+}
+
+service = fsc.SensorThingsService(
+    "https://example.com/FROST-Server/v1.1",
+    auth_handler=auth,
+    proxies=proxies,
+)
+```
+
+<Warning>
+  Passing a non-dict value for `proxies` raises a `ValueError`. Always provide
+  a dictionary even when configuring a single protocol.
+</Warning>
+
+---
+
+## Using HTTPS in production
+
+<Warning>
+  Always use `https://` URLs in production deployments. HTTP transmits
+  credentials in Base64-encoded plaintext, making them trivially interceptable
+  on any network path that is not encrypted. FROST Server supports TLS
+  termination via a reverse proxy (nginx, Traefik, etc.).
+</Warning>
+
+```python
+# ✅ Production — credentials are protected by TLS
+service = fsc.SensorThingsService(
+    "https://frost.example.com/FROST-Server/v1.1",
+    auth_handler=fsc.AuthHandler(username="admin", password="secret"),
+)
+
+# ⚠️  Development only — credentials sent in plaintext
+service = fsc.SensorThingsService(
+    "http://localhost:8080/FROST-Server/v1.1",
+    auth_handler=fsc.AuthHandler(username="admin", password="admin"),
+)
+```
+
+---
+
+## FROST Server Docker Compose example
+
+When running FROST Server locally with Docker Compose, Basic Auth is enabled by setting the `AUTH_PROVIDER` environment variable to `de.fraunhofer.iosb.ilt.frostserver.auth.basic.BasicAuthProvider`. The default credentials used in the example stack are `admin` / `admin`.
+
+```python
+# Matching the default Docker Compose setup
+service = fsc.SensorThingsService(
+    "http://localhost:8080/FROST-Server/v1.1",
+    auth_handler=fsc.AuthHandler(username="admin", password="admin"),
+)
+```
+
+<Tip>
+  Change the default admin password immediately when deploying FROST Server in
+  any environment accessible outside your local machine.
+</Tip>
+
+<CardGroup cols={2}>
+  <Card title="CRUD Operations" icon="pencil" href="/guides/crud-operations">
+    Create, read, update, and delete entities once authenticated
+  </Card>
+  <Card title="Querying" icon="magnifying-glass" href="/guides/querying">
+    Filter and paginate entity lists
+  </Card>
+</CardGroup>

@@ -1,0 +1,187 @@
+---
+title: "AuthHandler API Reference"
+sidebarTitle: "AuthHandler"
+description: "API reference for AuthHandler, which wraps HTTP Basic Auth credentials and integrates with SensorThingsService to authenticate requests to protected FROST servers."
+---
+
+`AuthHandler` is a thin wrapper around HTTP Basic Auth credentials. When passed to a `SensorThingsService` instance it ensures that every outbound HTTP request carries the appropriate `Authorization: Basic …` header. This is the standard approach for connecting the FROST Python Client to password-protected FROST Server deployments.
+
+## Class
+
+```
+frost_sta_client.service.auth_handler.AuthHandler
+```
+
+<Note>
+  The current implementation supports **HTTP Basic Auth only**. If your FROST Server uses a different authentication scheme (OAuth2, token-based, client certificates, etc.), you will need to implement a custom auth mechanism and pass it to `requests` directly.
+</Note>
+
+---
+
+## Constructor
+
+```python
+AuthHandler(username='', password='')
+```
+
+Creates a new `AuthHandler` holding the given credentials. Both parameters default to an empty string so the object can be constructed and populated later, but note that `add_auth_header()` returns `None` when either value is `None`.
+
+<ParamField path="username" type="str" default='""'>
+  The username for HTTP Basic Auth. Set to `None` to explicitly disable authentication (causes `add_auth_header()` to return `None`).
+</ParamField>
+
+<ParamField path="password" type="str" default='""'>
+  The plaintext password for HTTP Basic Auth. Set to `None` to explicitly disable authentication.
+</ParamField>
+
+```python
+from frost_sta_client.service.auth_handler import AuthHandler
+
+auth = AuthHandler(username="admin", password="s3cr3t")
+```
+
+---
+
+## Methods
+
+### `add_auth_header()`
+
+Builds and returns a `requests.auth.HTTPBasicAuth` object from the stored credentials. This method is called automatically by `SensorThingsService.execute()` before every HTTP request when an `AuthHandler` is attached to the service.
+
+<ResponseField name="return" type="requests.auth.HTTPBasicAuth | None">
+  A `requests.auth.HTTPBasicAuth` instance constructed from `self.username` and `self.password`. Returns `None` if either `username` or `password` is `None`, which effectively disables the `Authorization` header for that request.
+</ResponseField>
+
+```python
+from frost_sta_client.service.auth_handler import AuthHandler
+from requests.auth import HTTPBasicAuth
+
+auth = AuthHandler(username="admin", password="s3cr3t")
+http_auth = auth.add_auth_header()
+
+assert isinstance(http_auth, HTTPBasicAuth)
+assert http_auth.username == "admin"
+assert http_auth.password == "s3cr3t"
+```
+
+<Warning>
+  If either `username` or `password` is `None` (not an empty string), `add_auth_header()` silently returns `None` and no `Authorization` header is sent. Make sure both attributes are set to non-`None` values before performing authenticated requests.
+</Warning>
+
+---
+
+## Integration with SensorThingsService
+
+Pass an `AuthHandler` instance as the `auth_handler` keyword argument when constructing a `SensorThingsService`. The service stores it and invokes `add_auth_header()` inside `execute()` for every request:
+
+```python
+# Inside SensorThingsService.execute() (simplified):
+if self.auth_handler is not None:
+    response = requests.request(method, url, auth=self.auth_handler.add_auth_header(), ...)
+```
+
+The `auth_handler` property on `SensorThingsService` is validated: passing anything that is not an `AuthHandler` instance (or `None`) raises a `ValueError`.
+
+```python
+import frost_sta_client as fsc
+
+auth = fsc.AuthHandler(username="admin", password="s3cr3t")
+service = fsc.SensorThingsService(
+    "https://example.org/FROST-Server/v1.1",
+    auth_handler=auth,
+)
+
+# All subsequent calls — find, query, create, update, patch, delete —
+# are automatically authenticated.
+things = service.things().query().top(5).list()
+```
+
+---
+
+## Attributes
+
+After construction the following instance attributes are available directly:
+
+| Attribute  | Type  | Description                       |
+|------------|-------|-----------------------------------|
+| `username` | `str` | The HTTP Basic Auth username.     |
+| `password` | `str` | The HTTP Basic Auth password.     |
+
+You can read and overwrite these at any time. The next call to `add_auth_header()` (triggered by the next HTTP request) will pick up the new values.
+
+```python
+auth = fsc.AuthHandler(username="user", password="old")
+auth.password = "new_password"  # takes effect on the next request
+```
+
+---
+
+## Usage Examples
+
+<CodeGroup>
+
+```python Basic setup
+import frost_sta_client as fsc
+
+auth = fsc.AuthHandler(username="readonly", password="hunter2")
+service = fsc.SensorThingsService(
+    "https://example.org/FROST-Server/v1.1",
+    auth_handler=auth,
+)
+
+thing = service.things().find(1)
+print(thing.name)
+```
+
+```python Rotate credentials at runtime
+import frost_sta_client as fsc
+
+auth = fsc.AuthHandler(username="admin", password="initial")
+service = fsc.SensorThingsService(
+    "https://example.org/FROST-Server/v1.1",
+    auth_handler=auth,
+)
+
+# ... perform some operations ...
+
+# Rotate password without recreating the service
+auth.password = "rotated_password"
+
+# The next request uses the updated credentials automatically
+service.things().query().top(1).list()
+```
+
+```python Disable auth conditionally
+import frost_sta_client as fsc
+
+def build_service(url, username=None, password=None):
+    auth = None
+    if username and password:
+        auth = fsc.AuthHandler(username=username, password=password)
+    return fsc.SensorThingsService(url, auth_handler=auth)
+
+# Public server — no auth
+public_svc = build_service("https://public.example.org/FROST-Server/v1.1")
+
+# Private server — with auth
+private_svc = build_service(
+    "https://private.example.org/FROST-Server/v1.1",
+    username="admin",
+    password="s3cr3t",
+)
+```
+
+</CodeGroup>
+
+<Tip>
+  Store credentials in environment variables rather than hard-coding them. The standard `os.environ` approach works well here:
+
+  ```python
+  import os, frost_sta_client as fsc
+
+  auth = fsc.AuthHandler(
+      username=os.environ["FROST_USER"],
+      password=os.environ["FROST_PASSWORD"],
+  )
+  ```
+</Tip>

@@ -1,0 +1,405 @@
+---
+title: "Query Builder API Reference"
+sidebarTitle: "Query"
+description: "API reference for the Query class — a fluent OData query builder for filtering, selecting, expanding, ordering, and paginating SensorThings entity lists."
+---
+
+`Query` is a fluent OData query builder returned by any DAO's `.query()` method. Instead of constructing URL query strings by hand, you chain method calls such as `.filter()`, `.select()`, `.expand()`, `.orderby()`, `.top()`, `.skip()`, and `.count()` — each returning `self` so they can be stacked in a single expression. Call `.list()` at the end to execute the HTTP request and receive an `EntityList`.
+
+## Class
+
+```
+frost_sta_client.query.query.Query
+```
+
+### How to obtain a Query
+
+You never instantiate `Query` directly. Every DAO (returned by `SensorThingsService` accessor methods) exposes a `.query()` method that creates and returns a properly initialised `Query` object:
+
+```python
+query = service.things().query()       # Query[Thing]
+query = service.observations().query() # Query[Observation]
+```
+
+---
+
+## Constructor (internal)
+
+```python
+Query(service, entity, entitytype_plural, entity_class, parent)
+```
+
+This constructor is called by `BaseDao.query()` and is not intended for direct use.
+
+<Expandable title="Internal constructor parameters">
+  <ParamField path="service" type="SensorThingsService" required>
+    The service instance that will execute the HTTP request. Must be a `SensorThingsService`; any other type raises `ValueError`.
+  </ParamField>
+
+  <ParamField path="entity" type="str | None" required>
+    The singular entity-type name string (e.g. `"Thing"`). Must be `str` or `None`.
+  </ParamField>
+
+  <ParamField path="entitytype_plural" type="str | None" required>
+    The plural entity-type name used to build the request URL (e.g. `"Things"`). Must be `str` or `None`.
+  </ParamField>
+
+  <ParamField path="entity_class" type="str | None" required>
+    The fully-qualified class name of the entity model, used by the deserialisation utilities.
+  </ParamField>
+
+  <ParamField path="parent" type="Entity | None" required>
+    An optional parent entity for navigating sub-collections (e.g. a `Thing` whose `Datastreams` are being queried). Pass `None` for top-level queries.
+  </ParamField>
+</Expandable>
+
+---
+
+## Internal Attributes
+
+| Attribute           | Type                  | Description                                                                              |
+|---------------------|-----------------------|------------------------------------------------------------------------------------------|
+| `service`           | `SensorThingsService` | The service that will execute the eventual HTTP request.                                 |
+| `entity`            | `str \| None`         | Singular entity-type name (e.g. `"Thing"`).                                              |
+| `entitytype_plural` | `str \| None`         | Plural entity-type name used in the URL path (e.g. `"Things"`).                         |
+| `entity_class`      | `str \| None`         | Fully-qualified model class name used for JSON deserialisation.                          |
+| `params`            | `dict`                | Accumulates OData query parameters. Each builder method writes into this dict.           |
+| `parent`            | `Entity \| None`      | Parent entity for navigating sub-collections; `None` for top-level collection requests. |
+
+---
+
+## Builder Methods
+
+All builder methods return `self`, enabling method chaining. Calling the same builder method a second time **replaces** the previously set value — there is no additive behaviour. Internally each method first calls `remove_all_params(key)` to clear the existing entry before writing the new one.
+
+---
+
+### `filter(statement)`
+
+Adds an OData `$filter` expression. The string is appended to the URL as-is, so it must be a valid OData filter expression.
+
+<ParamField path="statement" type="str | None" required>
+  An OData `$filter` expression string such as `"result gt 20"` or `"name eq 'Weather Station'"`. Pass `None` to clear any previously set filter without setting a new one.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+# Simple equality
+things = service.things().query().filter("name eq 'Weather Station'").list()
+
+# Compound condition
+obs = (
+    service.observations()
+    .query()
+    .filter("result gt 15 and result lt 30")
+    .list()
+)
+```
+
+---
+
+### `select(*args)`
+
+Adds an OData `$select` clause. Pass each field name as a separate positional argument; they are joined into a comma-separated string for the URL.
+
+<ParamField path="*args" type="str" required>
+  One or more field name strings to include in the response. Non-string arguments are silently ignored and the method returns `self` without setting `$select`. Pass no arguments to leave any previously set `$select` cleared.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+# Request only id and name fields
+things = service.things().query().select("id", "name").list()
+
+# Combined with filter
+things = (
+    service.things()
+    .query()
+    .select("name", "description", "properties")
+    .filter("properties/floor eq 'roof'")
+    .list()
+)
+```
+
+<Note>
+  If any argument in `*args` is not a `str`, the entire `select()` call is a no-op and the method returns `self` without updating `$select`.
+</Note>
+
+---
+
+### `expand(expansion)`
+
+Adds an OData `$expand` clause to inline related entities within the response.
+
+<ParamField path="expansion" type="str" required>
+  An OData `$expand` path string. Use `/` to navigate nested relations, e.g. `'Datastreams/Observations'`. A bare relation name such as `'Datastreams'` expands all Datastreams for each returned entity.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+# Expand one level
+things = service.things().query().expand("Datastreams").list()
+
+# Nested expand
+things = service.things().query().expand("Datastreams/Observations").list()
+for thing in things:
+    for ds in thing.datastreams:
+        print(ds.observations)
+```
+
+---
+
+### `orderby(criteria, order='DESC')`
+
+Adds an OData `$orderby` clause. The final parameter string is `"{criteria} {order}"`.
+
+<ParamField path="criteria" type="str" required>
+  The field or expression to sort by, e.g. `"phenomenonTime"` or `"result"`.
+</ParamField>
+
+<ParamField path="order" type="str" default='"DESC"'>
+  Sort direction. Pass `'ASC'` for ascending or `'DESC'` (the default) for descending order. The value is appended verbatim after a space, so any OData-valid order token is accepted.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+# Most recent observations first (default DESC)
+obs = service.observations().query().orderby("phenomenonTime").list()
+
+# Oldest first
+obs = service.observations().query().orderby("phenomenonTime", order="ASC").list()
+```
+
+---
+
+### `top(num)`
+
+Adds an OData `$top` clause limiting the number of entities returned.
+
+<ParamField path="num" type="int" required>
+  Maximum number of entities the server should return. The value is forwarded to the server as-is.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+latest_5 = service.observations().query().orderby("phenomenonTime").top(5).list()
+```
+
+---
+
+### `skip(num)`
+
+Adds an OData `$skip` clause, telling the server to omit the first `num` results.
+
+<ParamField path="num" type="int" required>
+  Number of entities to skip at the start of the result set. Combine with `top()` for manual pagination.
+</ParamField>
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+page_size = 100
+page = 2
+results = service.things().query().top(page_size).skip(page_size * (page - 1)).list()
+```
+
+---
+
+### `count()`
+
+Adds `$count=true` to the request, instructing the server to include the total count of matching entities in the response alongside the result set.
+
+<ResponseField name="return" type="Query">
+  `self` — the same `Query` instance for chaining.
+</ResponseField>
+
+```python
+entity_list = service.things().query().count().list()
+print("Total things on server:", entity_list.count)
+```
+
+<Note>
+  `count()` takes no arguments. Call it anywhere in the chain; the position does not matter.
+</Note>
+
+---
+
+## Terminal Method
+
+### `list(callback=None, step_size=None)`
+
+Executes the accumulated query by issuing a `GET` request to the resolved URL, then deserialises the JSON response into an `EntityList`.
+
+<ParamField path="callback" type="callable | None" default="None">
+  An optional callback function. When provided together with `step_size`, it is called with the current iteration index every `step_size` items during subsequent iteration over the returned `EntityList`. Use this for progress reporting on large collections.
+</ParamField>
+
+<ParamField path="step_size" type="int | None" default="None">
+  The iteration stride at which `callback` is invoked. Has no effect when `callback` is `None`.
+</ParamField>
+
+<ResponseField name="return" type="EntityList">
+  An `EntityList` object containing the deserialised entities from the first page of results. The list's `.count` attribute holds the server-reported total count when `$count=true` was requested.
+</ResponseField>
+
+```python
+# Simple fetch
+things = service.things().query().top(20).list()
+
+# With a progress callback
+def on_progress(index):
+    print(f"Processed {index} observations so far…")
+
+obs = (
+    service.observations()
+    .query()
+    .filter("result gt 0")
+    .list(callback=on_progress, step_size=50)
+)
+```
+
+<Warning>
+  If the server returns a non-2xx HTTP status code, `list()` raises `requests.exceptions.HTTPError`. If the response body cannot be parsed as JSON, a `ValueError` is raised with the message `'Cannot find json in http response'`.
+</Warning>
+
+---
+
+## Calling the Same Method Twice
+
+Each builder method calls `remove_all_params(key)` before writing the new value. This means calling the same method twice simply replaces the first value — there is no accumulation.
+
+```python
+query = service.things().query()
+
+query.top(10)   # params = {"$top": 10}
+query.top(50)   # params = {"$top": 50}  ← previous value replaced
+
+# Same with filter
+query.filter("name eq 'A'").filter("name eq 'B'")  # only 'B' is active
+```
+
+<Tip>
+  If you need to re-use a partially-built query with different terminal options, build the common part first, then chain the differing options inline rather than storing intermediate results:
+
+  ```python
+  base = service.observations().query().filter("result gt 10").orderby("phenomenonTime")
+
+  # These each create independent query objects from base
+  first_page  = service.observations().query().filter("result gt 10").orderby("phenomenonTime").top(100).skip(0).list()
+  second_page = service.observations().query().filter("result gt 10").orderby("phenomenonTime").top(100).skip(100).list()
+  ```
+</Tip>
+
+---
+
+## Extended Examples
+
+<CodeGroup>
+
+```python Chain all options
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+observations = (
+    service.observations()
+    .query()
+    .select("result", "phenomenonTime")
+    .filter("result gt 15")
+    .orderby("phenomenonTime", order="ASC")
+    .expand("Datastream")
+    .top(200)
+    .skip(0)
+    .count()
+    .list()
+)
+
+print(f"Fetched {len(observations)} of {observations.count} total")
+for obs in observations:
+    print(obs.phenomenon_time, obs.result)
+```
+
+```python Paginate with top and skip
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+PAGE_SIZE = 100
+page = 0
+all_things = []
+
+while True:
+    page_results = (
+        service.things()
+        .query()
+        .top(PAGE_SIZE)
+        .skip(PAGE_SIZE * page)
+        .list()
+    )
+    all_things.extend(page_results)
+    if len(page_results) < PAGE_SIZE:
+        break
+    page += 1
+
+print(f"Retrieved {len(all_things)} Things total")
+```
+
+```python Progress callback on large result sets
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+received = []
+
+def progress(index):
+    print(f"  … {index} records processed")
+
+entity_list = (
+    service.observations()
+    .query()
+    .filter("Datastream/id eq 3")
+    .orderby("phenomenonTime", order="ASC")
+    .list(callback=progress, step_size=100)
+)
+
+for obs in entity_list:
+    received.append(obs)
+
+print(f"Done. Total: {len(received)}")
+```
+
+```python Navigate a sub-collection
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+# Get a parent Thing
+thing = service.things().find(1)
+
+# Query its Datastreams via DAO with parent set
+dao = service.datastreams()
+dao.parent = thing
+datastreams = dao.query().top(10).list()
+
+for ds in datastreams:
+    print(ds.name)
+```
+
+</CodeGroup>

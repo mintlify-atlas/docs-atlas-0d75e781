@@ -1,47 +1,199 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with the FROST Python Client"
+sidebarTitle: "Quickstart"
+description: "Connect to a FROST SensorThings server, create your first entities, and query sensor observations in under five minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
-
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+This guide walks you through installing `frost_sta_client`, connecting to a FROST-Server instance, creating the full chain of SensorThings entities (Thing → Location → Sensor → ObservedProperty → Datastream → Observation), and running a filtered query to retrieve results. By the end you will have a working end-to-end example you can adapt for your own IoT project.
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+### Install the library
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+Install `frost_sta_client` from PyPI using pip. Python 3 is required.
 
-    ```bash
-    your-cli start
-    ```
-  </Step>
-</Steps>
+```bash
+pip install frost_sta_client
+```
+
+To pin to a specific release — recommended for reproducible environments — use:
+
+```bash
+pip install frost_sta_client==1.1.53
+```
+
+### Start a local FROST-Server (optional)
+
+If you do not already have a SensorThings API server to connect to, you can spin up the official FROST-Server locally using Docker Compose. The project ships a ready-to-use `docker-compose.yaml` at `frost_server/docker-compose.yaml` that starts a FROST-Server container backed by a PostGIS database.
+
+```bash
+docker compose -f frost_server/docker-compose.yaml up -d
+```
+
+The server will be available at `http://localhost:8080/FROST-Server/v1.1` once both the `web` and `database` containers report as healthy (the database performs a `pg_isready` health check every two seconds). Basic authentication is enabled by default — the compose file sets the username and password both to the credentials defined in the `environment` block.
+
+<Note>
+  The compose file enables HTTP CORS for all origins (`http_cors_allowed_origins=*`), making it convenient to call the API from browser-based tools. MultiDatastreams are disabled by default; set `plugins_multiDatastream.enable=true` to turn them on.
+</Note>
+
+### Create a SensorThingsService
+
+`SensorThingsService` is the entry point for every interaction with the server. Pass the server URL and, if the server requires authentication, an `AuthHandler` with your credentials.
+
+```python
+import frost_sta_client as fsc
+
+url = "http://localhost:8080/FROST-Server/v1.1"
+auth_handler = fsc.AuthHandler(username="admin", password="admin")
+
+service = fsc.SensorThingsService(url, auth_handler=auth_handler)
+```
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+  If your server does not require authentication, omit the `auth_handler` argument entirely — the default is `None` and all requests will be sent without credentials.
 </Tip>
+
+### Create a Thing with a Location
+
+In the SensorThings data model a **Thing** is the object of interest (a device, station, or asset), and a **Location** gives it a geospatial position. When you attach a `Location` to a `Thing` and call `service.create(thing)`, both entities are created in a single HTTP POST — FROST-Server handles the nested creation automatically.
+
+```python
+from geojson import Point
+
+# Define the geospatial position as a GeoJSON Point
+point = Point((-115.81, 37.24))
+
+location = fsc.Location(
+    name="here",
+    description="and there",
+    location=point,
+    encoding_type="application/geo+json"
+)
+
+thing = fsc.Thing(
+    name="new thing",
+    description="I am a thing with a location",
+    properties={"withLocation": True, "owner": "IOSB"}
+)
+
+# Attach the location before creating — sent as a nested object
+thing.locations = [location]
+service.create(thing)
+
+print(f"Created Thing with id: {thing.id}")
+```
+
+After `service.create(thing)` returns, `thing.id` is populated with the server-assigned identifier.
+
+### Create a Sensor and ObservedProperty
+
+A **Sensor** describes the instrument that takes measurements. An **ObservedProperty** identifies the physical phenomenon being observed (e.g. air temperature). Both must exist before you can create a Datastream.
+
+```python
+sensor = fsc.Sensor(
+    name="DHT22",
+    description="Digital humidity and temperature sensor",
+    encoding_type="application/pdf",
+    metadata="https://cdn-shop.adafruit.com/datasheets/DHT22.pdf"
+)
+service.create(sensor)
+
+observed_property = fsc.ObservedProperty(
+    name="Air Temperature",
+    description="The temperature of the air",
+    definition="http://vocab.nerc.ac.uk/collection/P07/current/CFSN0023/"
+)
+service.create(observed_property)
+
+print(f"Sensor id: {sensor.id}, ObservedProperty id: {observed_property.id}")
+```
+
+### Create a Datastream
+
+A **Datastream** links a Thing, a Sensor, and an ObservedProperty together and carries a `UnitOfMeasurement`. It acts as the container for all Observations recorded by that sensor-thing combination.
+
+```python
+unit = fsc.UnitOfMeasurement(
+    name="degree Celsius",
+    symbol="°C",
+    definition="http://unitsofmeasure.org/ucum.html#para-30"
+)
+
+datastream = fsc.Datastream(
+    name="Air Temperature Readings",
+    description="Air temperature measured by DHT22 on new thing",
+    observation_type="http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    unit_of_measurement=unit,
+    thing=thing,
+    sensor=sensor,
+    observed_property=observed_property
+)
+service.create(datastream)
+
+print(f"Datastream id: {datastream.id}")
+```
+
+### Post an Observation
+
+With the Datastream in place you can start recording **Observations**. Each Observation carries a `result`, a `phenomenon_time` (when the measurement was taken), and a reference to its parent Datastream.
+
+```python
+observation = fsc.Observation(
+    result=23.7,
+    phenomenon_time="2024-06-01T12:00:00Z",
+    datastream=datastream
+)
+service.create(observation)
+
+print(f"Observation id: {observation.id}")
+```
+
+<Tip>
+  To post large numbers of Observations efficiently, use the **DataArray** bulk-insert extension instead of individual POSTs. See the [DataArrays](#) guide for details.
+</Tip>
+
+### Query and filter results
+
+Use `.query()` on any DAO to build a server-side query. Queries are lazy — nothing is sent to the server until you call `.list()`. The returned `EntityList` is a fully iterable Python object that transparently fetches additional pages if the result set spans multiple chunks.
+
+```python
+# Fetch Things filtered by id
+things_list = service.things().query().filter("id eq 1").list()
+
+for thing in things_list:
+    print("my name is: {}".format(thing.name))
+```
+
+You can also query related entities directly from a parent entity. For example, to retrieve only the Observations for a specific Datastream where the result exceeds a threshold:
+
+```python
+datastream = service.datastreams().find(datastream.id)
+observations_list = (
+    datastream.get_observations()
+    .query()
+    .filter("result gt 20")
+    .orderby("phenomenonTime", "DESC")
+    .top(50)
+    .list()
+)
+
+for obs in observations_list:
+    print(f"  result={obs.result}  time={obs.phenomenon_time}")
+```
+
+<Note>
+  The `EntityList` iterator automatically follows `@iot.nextLink` pagination links so you can iterate the full result set without any extra code. If you only want the current page, iterate `observations_list.entities` instead of the list object itself.
+</Note>
+
+</Steps>
+
+## What's next?
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="installation">
+    Pin dependencies, switch JSON backends, and review all setup options.
+  </Card>
+  <Card title="Introduction" icon="book-open" href="introduction">
+    Understand the full architecture, entity model, and standard concepts.
+  </Card>
+</CardGroup>

@@ -1,0 +1,282 @@
+---
+title: "TaskingCapability and Task Entity API Reference"
+sidebarTitle: "Tasking"
+description: "API reference for TaskingCapability and Task — SensorThings Tasking extension entities for issuing commands to actuators and tracking execution."
+---
+
+The Tasking extension (OGC SensorThings API Part 2) introduces two closely related entities for controlling actuators: `TaskingCapability` and `Task`. Together they form the command-and-control layer of the SensorThings model — defining *what* an actuator can do and *what it has been asked to do*.
+
+A **`TaskingCapability`** declares the contract between a `Thing` and an `Actuator`: it names the capability, describes its parameters schema in `tasking_parameters`, and acts as the parent for all `Task` objects that exercise that capability. A **`Task`** is an individual command instance submitted against a `TaskingCapability`, carrying the actual runtime parameter values in `tasking_parameters` and recording when it was created via `creation_time`.
+
+Both classes inherit from `Entity`, providing `id`, `self_link`, and `service`. Datetime fields on `Task` use `utils.check_datetime`, accepting ISO 8601 strings or Python `datetime` objects.
+
+<Note>
+  A `TaskingCapability` must reference both a `Thing` and an `Actuator`. The `Thing` represents the physical device being controlled; the `Actuator` describes the actuation mechanism and its metadata. The `tasking_parameters` field on `TaskingCapability` is a schema descriptor (a dict), whereas on `Task` it holds the concrete runtime parameter values.
+</Note>
+
+---
+
+## TaskingCapability
+
+`TaskingCapability` links a `Thing` to an `Actuator`, documenting the command interface that can be invoked. It holds the parameter schema and acts as the parent collection for submitted `Task` objects.
+
+### Class signature
+
+```python
+from frost_sta_client.model.tasking_capability import TaskingCapability
+
+TaskingCapability(
+    name='',
+    description='',
+    properties=None,
+    tasking_parameters=None,
+    tasks=None,
+    thing=None,
+    actuator=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+### Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for this capability (e.g., `'Set Fan Speed'`). Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of what this tasking capability does. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="properties" type="dict" default="{}">
+  Arbitrary key-value metadata for the capability. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}`.
+</ParamField>
+
+<ParamField path="tasking_parameters" type="dict" default="{}">
+  A dictionary describing the parameter schema for tasks submitted against this capability. Each key is a parameter name and the value describes its type, range, or allowed values. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed.
+</ParamField>
+
+<ParamField path="tasks" type="EntityList[Task] | None" default="None">
+  The `Task` entities submitted against this capability. Accepts an `EntityList` or a plain list of `Task` objects.
+</ParamField>
+
+<ParamField path="thing" type="Thing | None" default="None">
+  The `Thing` (physical device) that this capability applies to. Must be a `Thing` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="actuator" type="Actuator | None" default="None">
+  The `Actuator` that will execute tasks for this capability. Must be an `Actuator` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+### Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+### Instance properties
+
+<ResponseField name="name" type="str">
+  Name of the tasking capability. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str">
+  Description of the capability. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary extra metadata. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="tasking_parameters" type="dict">
+  Parameter schema descriptor. Resets to `{}` when `None` is assigned. Serialized as `taskingParameters`.
+</ResponseField>
+
+<ResponseField name="tasks" type="EntityList[Task] | None">
+  Submitted tasks, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="thing" type="Thing | None">
+  The target `Thing`. Serialized as nested `Thing` in JSON.
+</ResponseField>
+
+<ResponseField name="actuator" type="Actuator | None">
+  The executing `Actuator`. Serialized as nested `Actuator` in JSON.
+</ResponseField>
+
+### Navigation methods
+
+<ResponseField name="get_tasks()" type="Query[Task]">
+  Returns a `Query` for all `Task` entities submitted against this `TaskingCapability`. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+---
+
+## Task
+
+A `Task` is a single command submission. It carries the runtime parameter values in `tasking_parameters`, the creation timestamp in `creation_time`, and a back-reference to its parent `TaskingCapability`.
+
+### Class signature
+
+```python
+from frost_sta_client.model.task import Task
+
+Task(
+    tasking_parameters=None,
+    creation_time=None,
+    tasking_capability=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+### Constructor parameters
+
+<ParamField path="tasking_parameters" type="dict" default="{}">
+  The concrete runtime parameter values for this command. Must be a `dict`; raises `ValueError` if `None` or non-`dict`. Serialized as `taskingParameters`. Defaults to `{}`.
+</ParamField>
+
+<ParamField path="creation_time" type="str | datetime | None" default="None">
+  The timestamp when this task was created or submitted. Accepts an ISO 8601 string or a Python `datetime` object; validated by `utils.check_datetime`. Serialized as `creationTime`.
+</ParamField>
+
+<ParamField path="tasking_capability" type="TaskingCapability | None" default="None">
+  The `TaskingCapability` this task is submitted against. Must be a `TaskingCapability` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+### Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance.
+</ResponseField>
+
+### Instance properties
+
+<ResponseField name="tasking_parameters" type="dict">
+  The runtime parameter values for this task. Validated as `dict` on set; `None` raises `ValueError`. Serialized as `taskingParameters`.
+</ResponseField>
+
+<ResponseField name="creation_time" type="str | datetime | None">
+  Timestamp of task creation. Validated by `utils.check_datetime`. Serialized as `creationTime`.
+</ResponseField>
+
+<ResponseField name="tasking_capability" type="TaskingCapability | None">
+  The parent `TaskingCapability`. Validated as `TaskingCapability` on set. Serialized as nested `TaskingCapability` in JSON.
+</ResponseField>
+
+---
+
+## Usage examples
+
+<CodeGroup>
+```python Create a TaskingCapability linking Thing and Actuator
+from frost_sta_client.model.tasking_capability import TaskingCapability
+
+# Assume thing and actuator have been fetched or created already
+tc = TaskingCapability(
+    name='Set Irrigation Duration',
+    description='Controls the duration (in seconds) of a single irrigation cycle for Zone A.',
+    tasking_parameters={
+        'duration': {
+            'type': 'integer',
+            'minimum': 0,
+            'maximum': 3600,
+            'description': 'Irrigation duration in seconds'
+        }
+    },
+    thing=thing,
+    actuator=actuator
+)
+```
+
+```python Create TaskingCapability and Task via service
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+thing = service.things().find(1)
+actuator = service.actuators().find(1)
+
+tc = frost_sta_client.TaskingCapability(
+    name='Set Fan Speed',
+    description='Sets the supply fan speed as a percentage of maximum rated speed.',
+    tasking_parameters={
+        'speed': {
+            'type': 'number',
+            'minimum': 0,
+            'maximum': 100,
+            'description': 'Fan speed percentage'
+        }
+    },
+    thing=thing,
+    actuator=actuator
+)
+service.create(tc)
+print(tc.id)
+
+# Submit a Task against this TaskingCapability
+task = frost_sta_client.Task(
+    tasking_parameters={'speed': 75},
+    tasking_capability=tc
+)
+service.create(task)
+print(task.id)
+print(task.creation_time)
+```
+
+```python Query all Tasks for a TaskingCapability
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+tc = service.tasking_capabilities().find(3)
+
+tasks = tc.get_tasks().query().order_by('creationTime desc').top(10).list()
+for task in tasks.entities:
+    print(task.id, task.creation_time, task.tasking_parameters)
+```
+
+```python Create a Task referencing a TaskingCapability by id only
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+# Reference existing capability without fetching full entity
+tc_ref = frost_sta_client.TaskingCapability(id=5)
+
+task = frost_sta_client.Task(
+    tasking_parameters={'duration': 120},
+    tasking_capability=tc_ref
+)
+service.create(task)
+```
+</CodeGroup>
+
+<Tip>
+  The `tasking_parameters` on a `TaskingCapability` is a **schema** (describing what parameters are accepted), while the `tasking_parameters` on a `Task` holds the **actual values** sent in the command. Keep the schema in `TaskingCapability` expressive enough so that clients can validate task parameters before submission.
+</Tip>
+
+<Warning>
+  The `Task.tasking_parameters` setter raises `ValueError` for both `None` and non-`dict` values — unlike most other nullable fields in the client. Always pass at least an empty dict `{}` if no parameters are required.
+</Warning>

@@ -1,0 +1,164 @@
+---
+title: "OGC SensorThings API Entity Model Explained"
+sidebarTitle: "Data Model"
+description: "Understand the twelve OGC SensorThings entity types — Things, Datastreams, Observations, and more — and how they relate in FROST Python Client."
+---
+
+The OGC SensorThings API defines a standard, RESTful interface for connecting IoT devices, data, and applications over the web. It organises everything into a set of interconnected entity types, each representing a distinct concept in the sensing or tasking domain. The FROST Python Client maps every one of these entity types to a corresponding Python class, allowing you to work with sensor data in a fully object-oriented way.
+
+## Two Extension Profiles
+
+The SensorThings API is divided into two functional profiles that can be used independently or together.
+
+<CardGroup cols={2}>
+  <Card title="Sensing Profile (Core)" icon="satellite-dish">
+    The core profile covers everything related to collecting observations from physical or virtual sensors. It defines Things, Locations, Sensors, ObservedProperties, Datastreams, Observations, FeatureOfInterest, and HistoricalLocations. This is the profile most deployments use.
+  </Card>
+  <Card title="Tasking Extension" icon="sliders">
+    The tasking extension adds the ability to send commands back to devices. It introduces Actuators, TaskingCapabilities, and Tasks, enabling two-way IoT communication where clients can both read sensor data and control physical actuators.
+  </Card>
+</CardGroup>
+
+## The Twelve Entity Types
+
+The data model consists of twelve entity types split across the two profiles. The diagram below shows the conceptual flow from a physical thing through to a recorded observation.
+
+```text
+Thing ──── Location
+  │
+  ├── Datastream ──── Sensor
+  │       │           ObservedProperty
+  │       │
+  │       └── Observation ──── FeatureOfInterest
+  │
+  └── HistoricalLocation ──── Location
+```
+
+### Sensing Profile Entities
+
+<CardGroup cols={2}>
+  <Card title="Thing" icon="microchip">
+    The central entity. A Thing is any object in the physical or virtual world that is capable of being observed or acted upon — a weather station, a smart thermostat, or a virtual data aggregator. Things carry a `name`, `description`, and an arbitrary `properties` dictionary.
+  </Card>
+  <Card title="Location" icon="location-dot">
+    Describes where a Thing is right now. Locations are encoded as GeoJSON geometries (e.g. `Point`, `Polygon`) and carry an `encoding_type` of `application/geo+json`. A single Thing can have multiple current Locations, and a Location can be shared by many Things.
+  </Card>
+  <Card title="HistoricalLocation" icon="clock-rotate-left">
+    Records a past location of a Thing, with a `time` timestamp. Every time a Thing's Location changes, a new HistoricalLocation is automatically created by the server, preserving the full movement history of the device.
+  </Card>
+  <Card title="Sensor" icon="bolt">
+    Represents the physical or virtual instrument that produces observations. Sensors carry a `name`, `description`, `encoding_type`, and `metadata` that describes the sensor procedure (e.g. a SensorML document URL or a PDF datasheet).
+  </Card>
+  <Card title="ObservedProperty" icon="magnifying-glass-chart">
+    The real-world phenomenon being measured, such as "Air Temperature" or "Relative Humidity". Each ObservedProperty has a `name`, `description`, and a `definition` URI pointing to a controlled vocabulary entry (e.g. a QUDT or CF Conventions term).
+  </Card>
+  <Card title="Datastream" icon="wave-square">
+    The binding entity that links a **Thing**, a **Sensor**, and an **ObservedProperty** into a single stream of homogeneous observations. A Datastream also specifies the `observation_type` (an O&M type URI) and a `unit_of_measurement`. All Observations in one Datastream share the same unit and observed property.
+  </Card>
+  <Card title="Observation" icon="chart-line">
+    A single measurement event. An Observation records a `result` value, a `phenomenon_time`, an optional `result_time`, and links to both the Datastream that contextualises it and the FeatureOfInterest at which it was made. The `result` can be any JSON-serialisable value.
+  </Card>
+  <Card title="FeatureOfInterest" icon="map-pin">
+    The real-world feature that an Observation is about — typically the geographic location at the time of measurement. While similar to a Location, a FeatureOfInterest is immutable once created and is stored as a GeoJSON geometry alongside the observation record.
+  </Card>
+</CardGroup>
+
+### Tasking Extension Entities
+
+<CardGroup cols={2}>
+  <Card title="Actuator" icon="gear">
+    Represents a physical device that can receive commands, such as a valve, a relay, or a motor controller. Like a Sensor, an Actuator has a `name`, `description`, `encoding_type`, and `metadata` field. It links to one or more TaskingCapabilities.
+  </Card>
+  <Card title="TaskingCapability" icon="list-check">
+    Describes what an Actuator can do and the parameters required to do it. The `tasking_parameters` field holds a JSON Schema-like dictionary that defines the accepted input parameters. A TaskingCapability connects an Actuator to a Thing.
+  </Card>
+  <Card title="Task" icon="play">
+    Represents a single command sent to an Actuator via a TaskingCapability. A Task carries `tasking_parameters` (the actual values matching the capability's schema) and a `creation_time` timestamp. Tasks are the write-side counterpart to Observations.
+  </Card>
+</CardGroup>
+
+### MultiDatastream
+
+<Note>
+  MultiDatastream is part of the core specification but handles the special case of sensors that produce multiple correlated result components simultaneously (e.g. wind speed and direction in a single observation). A `MultiDatastream` links a Thing and a Sensor to **multiple** ObservedProperties and stores results as arrays.
+</Note>
+
+## Entity Relationships
+
+The table below lists each entity type and its navigable relations as defined in the library's `EntityTypes` registry.
+
+| Entity | Related Entities |
+|---|---|
+| `Thing` | `Datastreams`, `MultiDatastreams`, `Locations`, `HistoricalLocations`, `TaskingCapabilities` |
+| `Location` | `Things`, `HistoricalLocations` |
+| `HistoricalLocation` | `Thing`, `Locations` |
+| `Sensor` | `Datastreams`, `MultiDatastreams` |
+| `ObservedProperty` | `Datastreams`, `MultiDatastreams` |
+| `Datastream` | `Thing`, `Sensor`, `ObservedProperty`, `Observations` |
+| `MultiDatastream` | `Thing`, `Sensor`, `ObservedProperties`, `Observations` |
+| `Observation` | `Datastream`, `MultiDatastream`, `FeatureOfInterest` |
+| `FeatureOfInterest` | `Observations` |
+| `Actuator` | `TaskingCapabilities` |
+| `TaskingCapability` | `Actuator`, `Thing`, `Tasks` |
+| `Task` | `TaskingCapability` |
+
+Navigation links follow a `ParentType(id)/ChildCollection` URL pattern. For example, all Observations for Datastream 5 live at `Datastreams(5)/Observations`. The library exposes these as `get_*()` helper methods on each entity (e.g. `datastream.get_observations()`).
+
+## UnitOfMeasurement
+
+`UnitOfMeasurement` is a lightweight value object embedded inside every `Datastream` and `MultiDatastream`. It is not a standalone entity with its own endpoint — it cannot be queried or deleted independently. It has three fields:
+
+<CardGroup cols={3}>
+  <Card title="name" icon="tag">
+    A human-readable label for the unit, e.g. `"degree Celsius"`.
+  </Card>
+  <Card title="symbol" icon="superscript">
+    The abbreviated symbol, e.g. `"°C"` or `"m/s"`.
+  </Card>
+  <Card title="definition" icon="link">
+    A URI linking to the formal definition of the unit, e.g. a QUDT or UCUM entry.
+  </Card>
+</CardGroup>
+
+```python
+import frost_sta_client as fsc
+
+uom = fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+    name="degree Celsius",
+    symbol="°C",
+    definition="http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
+)
+
+datastream = fsc.Datastream(
+    name="Temperature readings",
+    description="Air temperature at rooftop sensor",
+    observation_type="http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    unit_of_measurement=uom,
+    thing=fsc.Thing(id=1),
+    sensor=fsc.Sensor(id=1),
+    observed_property=fsc.ObservedProperty(id=1),
+)
+```
+
+<Tip>
+  When referencing existing entities inside a new entity (e.g. assigning a Thing to a Datastream), you only need to supply the `id`. The server uses the `@iot.id` field to resolve the foreign key. The library's `__getstate__` serialisation only emits `@iot.id` when full entity data is absent.
+</Tip>
+
+## Hierarchy Summary
+
+The sensing hierarchy flows from the physical world (Things, Locations) through the measurement infrastructure (Sensors, ObservedProperties, Datastreams) to the collected data (Observations, FeaturesOfInterest). The tasking hierarchy mirrors this structure in reverse, flowing from a command (Task) through a capability (TaskingCapability) to the physical actuator (Actuator) mounted on a Thing.
+
+<Steps>
+  <Step title="Model your physical asset">
+    Create a `Thing` with a `Location` to represent your device and where it sits in the world.
+  </Step>
+  <Step title="Describe your measurement chain">
+    Create a `Sensor` (the instrument), an `ObservedProperty` (what it measures), and a `Datastream` that binds all three together with a `UnitOfMeasurement`.
+  </Step>
+  <Step title="Record observations">
+    Post `Observation` entities to the Datastream, referencing a `FeatureOfInterest` for the geographic context of each measurement.
+  </Step>
+  <Step title="Optionally add tasking">
+    Create an `Actuator`, define its `TaskingCapability`, and send `Task` entities to issue commands back to the device.
+  </Step>
+</Steps>

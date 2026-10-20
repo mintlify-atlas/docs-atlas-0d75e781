@@ -1,0 +1,199 @@
+---
+title: "Entity Classes and the Python Data Model"
+sidebarTitle: "Entities"
+description: "FROST Python Client entities inherit from a common Entity base. Learn typed properties, JSON serialization, related-entity references, and ID handling."
+---
+
+Every object in the OGC SensorThings API — from a `Thing` to a `Task` — is represented in the FROST Python Client by a dedicated Python class. All of these classes share a common foundation through the abstract `Entity` base class, which standardises identity, service binding, and JSON serialisation across the entire model. Understanding this shared foundation makes working with any entity type predictable and consistent.
+
+## The Entity Base Class
+
+`Entity` is an abstract base class (ABC) defined in `frost_sta_client.model.entity`. You never instantiate it directly; instead, you use the concrete subclasses. Every entity begins with three base attributes:
+
+<ParamField path="id" type="int | str | None" default="None">
+  The server-assigned unique identifier, read back from the `@iot.id` field in JSON responses. IDs can be integers or strings depending on the server configuration. Setting any other type raises a `ValueError`. Before an entity is created on the server, `id` is `None`.
+</ParamField>
+
+<ParamField path="self_link" type="str" default='""'>
+  The `@iot.selfLink` URL returned by the server — the canonical URL for this entity instance. Populated automatically when the entity is deserialised from a server response.
+</ParamField>
+
+<ParamField path="service" type="SensorThingsService | None" default="None">
+  A reference to the `SensorThingsService` instance this entity belongs to. Populated when the entity is returned from a `find()` call, a `query().list()`, or a `create()` operation. Required before calling navigation helpers like `thing.get_datastreams()`.
+</ParamField>
+
+```python
+from frost_sta_client.model.entity import Entity
+# Entity is abstract — use a concrete subclass
+import frost_sta_client as fsc
+
+thing = fsc.Thing(name="My Device", description="A test device")
+print(thing.id)        # None — not yet persisted
+print(thing.self_link) # ""
+print(thing.service)   # None
+```
+
+## Typed Properties and Validation
+
+Each concrete entity class enforces types on every attribute through Python `@property` setters. Assigning an incorrect type raises a `ValueError` immediately, so errors are caught at the point of assignment rather than at serialisation time.
+
+```python
+import frost_sta_client as fsc
+
+thing = fsc.Thing()
+thing.name = "Valid name"        # OK — str
+thing.name = 42                  # raises ValueError: name should be of type str!
+
+obs = fsc.Observation()
+obs.result = {"value": 3.14}     # OK — any JSON-serialisable value
+obs.result = object()            # raises TypeError: result should be json serializable
+```
+
+## Entity Reference Properties
+
+Entities hold typed references to related entities, not just foreign-key IDs. For example, a `Datastream` carries `.thing`, `.sensor`, and `.observed_property` attributes, each validated to be the correct type.
+
+```python
+import frost_sta_client as fsc
+
+sensor = fsc.Sensor(id=1)          # reference to existing Sensor by ID only
+op = fsc.ObservedProperty(id=2)    # reference to existing ObservedProperty by ID only
+thing = fsc.Thing(id=3)            # reference to existing Thing by ID only
+
+ds = fsc.Datastream(
+    name="Temperature",
+    description="Rooftop air temperature",
+    observation_type="http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    thing=thing,
+    sensor=sensor,
+    observed_property=op,
+    unit_of_measurement=fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+        name="degree Celsius", symbol="°C",
+        definition="http://www.qudt.org/qudt/owl/1.0.0/unit/Instances.html#DegreeCelsius"
+    )
+)
+```
+
+<Note>
+  When referencing an existing entity by ID, you only need to set its `id` field. The `__getstate__` serialiser emits only `{"@iot.id": <id>}` for such stub references, which tells the server to resolve the foreign key without re-creating the entity.
+</Note>
+
+## EntityList
+
+Collections of entities returned by query operations are wrapped in an `EntityList` object rather than a plain Python list. `EntityList` is iterable and handles automatic pagination transparently.
+
+```python
+entity_list = service.things().query().list()
+
+# Iterate — automatically follows @iot.nextLink pages
+for thing in entity_list:
+    print(thing.name)
+
+# Access a specific entity by index within the current page
+thing = entity_list.get(0)
+
+# Access the raw list of already-loaded entities
+for thing in entity_list.entities:
+    print(thing.name)
+```
+
+Key `EntityList` attributes:
+
+| Attribute | Type | Description |
+|---|---|---|
+| `entities` | `list[Entity]` | The entities loaded so far from all fetched pages. |
+| `next_link` | `str \| None` | The `@iot.nextLink` URL for the next page, or `None` if this is the last page. |
+| `count` | `int \| None` | The `@iot.count` total if `$count=true` was requested. |
+| `callback` | `callable \| None` | A function called every `step_size` entities during iteration. |
+| `step_size` | `int \| None` | How often (in entity count) the callback is invoked. |
+
+```python
+def progress(idx):
+    print(f"Processed {idx} entities so far")
+
+entity_list = service.things().query().list(callback=progress, step_size=100)
+for thing in entity_list:
+    pass  # callback fires every 100 entities
+```
+
+## JSON Serialisation: `__getstate__` and `__setstate__`
+
+The library uses Python's `__getstate__` / `__setstate__` protocol (also used by `jsonpickle` and `pickle`) to convert entities to and from the JSON format expected by the SensorThings API.
+
+**`__getstate__`** produces a plain Python dictionary mapping STA JSON field names to values. Only non-empty/non-None fields are included. Related entities are serialised recursively, but stub references (ID-only) produce minimal `{"@iot.id": ...}` objects.
+
+**`__setstate__`** populates the entity from a dictionary that matches the STA JSON response format. It reads `@iot.id`, `@iot.selfLink`, and entity-specific properties, instantiating related entity objects recursively where the server includes them via `$expand`.
+
+```python
+import frost_sta_client as fsc
+
+thing = fsc.Thing(name="Sensor Node 7", description="Garden sensor", properties={"zone": "A"})
+print(thing.__getstate__())
+# {'name': 'Sensor Node 7', 'description': 'Garden sensor', 'properties': {'zone': 'A'}}
+
+# Round-trip from a server response dictionary
+state = {
+    "@iot.id": 42,
+    "@iot.selfLink": "http://server/FROST-Server/v1.1/Things(42)",
+    "name": "Sensor Node 7",
+    "description": "Garden sensor",
+    "properties": {"zone": "A"}
+}
+t = fsc.Thing()
+t.__setstate__(state)
+print(t.id, t.name)  # 42  Sensor Node 7
+```
+
+## The set_service() Method
+
+`set_service(service)` propagates a `SensorThingsService` reference to an entity and all of its child entities recursively. This is called automatically by the query engine after a `list()` or `find()` response is deserialised, ensuring every nested entity in an expanded response can issue further API calls.
+
+```python
+# After an expanded query, all nested entities already have service set:
+ds = service.datastreams().query().expand("Thing,Sensor,ObservedProperty").list().get(0)
+print(ds.thing.service)   # same service instance
+print(ds.sensor.service)  # same service instance
+```
+
+The propagation is implemented by the `ensure_service_on_children` method on each concrete entity, which each class overrides to propagate to its specific child collections.
+
+## Entity Overview Table
+
+The following table summarises every concrete entity class, its key own-properties, and the related entities it holds references to.
+
+| Class | Key Properties | Related Entities |
+|---|---|---|
+| `Thing` | `name`, `description`, `properties` | `locations`, `historical_locations`, `datastreams`, `multi_datastreams`, `tasking_capabilities` |
+| `Location` | `name`, `description`, `encoding_type`, `location` | `things`, `historical_locations` |
+| `Sensor` | `name`, `description`, `encoding_type`, `metadata`, `properties` | `datastreams`, `multi_datastreams` |
+| `ObservedProperty` | `name`, `definition`, `description`, `properties` | `datastreams`, `multi_datastreams` |
+| `Datastream` | `name`, `description`, `observation_type`, `unit_of_measurement`, `phenomenon_time`, `result_time`, `observed_area`, `properties` | `thing`, `sensor`, `observed_property`, `observations` |
+| `Observation` | `phenomenon_time`, `result`, `result_time`, `result_quality`, `valid_time`, `parameters` | `datastream`, `multi_datastream`, `feature_of_interest` |
+| `FeatureOfInterest` | `name`, `description`, `encoding_type`, `feature`, `properties` | `observations` |
+| `HistoricalLocation` | `time` | `thing`, `locations` |
+| `MultiDatastream` | `name`, `description`, `observation_type`, `unit_of_measurements`, `observed_area`, `phenomenon_time`, `result_time`, `properties` | `thing`, `sensor`, `observed_properties`, `observations` |
+| `Actuator` | `name`, `description`, `encoding_type`, `metadata`, `properties` | `tasking_capabilities` |
+| `TaskingCapability` | `name`, `description`, `tasking_parameters`, `properties` | `actuator`, `thing`, `tasks` |
+| `Task` | `tasking_parameters`, `creation_time` | `tasking_capability` |
+
+## Navigation Helpers
+
+Each entity class exposes `get_*()` methods that return a DAO scoped to the entity as a parent. These are the preferred way to fetch related collections rather than building URL paths manually.
+
+```python
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1")
+
+# Fetch a thing, then navigate to its datastreams
+thing = service.things().find(1)
+datastreams = thing.get_datastreams().query().list()
+
+# Navigate from a datastream to its observations with a filter
+ds = service.datastreams().find(5)
+hot_obs = ds.get_observations().query().filter("result gt 30.0").list()
+for obs in hot_obs:
+    print(obs.result, obs.phenomenon_time)
+```
+
+<Tip>
+  The `get_*()` methods set `parent` on the returned DAO. When `query().list()` is subsequently called, the URL is scoped to `ParentType(id)/ChildCollection`, ensuring you only retrieve entities that belong to this specific parent.
+</Tip>

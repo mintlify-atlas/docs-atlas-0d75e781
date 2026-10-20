@@ -1,0 +1,208 @@
+---
+title: "Sensor Entity API Reference"
+sidebarTitle: "Sensor"
+description: "API reference for the Sensor entity — an instrument measuring a physical phenomenon. Covers properties, metadata encoding, and datastream navigation."
+---
+
+The `Sensor` entity represents the physical or virtual instrument that performs a measurement. In the SensorThings data model, every `Datastream` is associated with exactly one `Sensor`, tying the raw observation data back to the device or procedure that produced it. A single `Sensor` can supply measurements to multiple `Datastream` and `MultiDatastream` entities, making it a shared, reusable resource.
+
+`Sensor` inherits from `Entity`, providing the `id`, `self_link`, and `service` base attributes. All string properties (`name`, `description`, `encoding_type`) raise `ValueError` if assigned a non-`str` value. The `metadata` field is validated for JSON-serializability, allowing URLs, specification documents, or structured configuration objects.
+
+<Note>
+  Unlike `Thing`, the `Sensor` constructor does **not** convert a `None` argument for `name`, `description`, or `encoding_type` into a default — it raises `ValueError` instead. Always pass strings, or rely on the default empty-string defaults.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.sensor import Sensor
+
+Sensor(
+    name='',
+    description='',
+    encoding_type='',
+    properties=None,
+    metadata=None,
+    datastreams=None,
+    multi_datastreams=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the sensor instrument. Must be `str`; raises `ValueError` for any other type including `None`.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of the sensor, covering its capabilities, make, model, or purpose. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="encoding_type" type="str" default='""'>
+  The MIME type of the `metadata` payload. Common values: `'application/pdf'` (sensor datasheet), `'text/html'` (web page), or `'application/json'` (structured document). Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata for the sensor. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed.
+</ParamField>
+
+<ParamField path="metadata" type="JSON-serializable | None" default="None">
+  Supplementary information about the sensor — typically a URL string pointing to a datasheet, or a dict with specification details. Any JSON-serializable value is accepted. Raises `TypeError` if the value cannot be serialized to JSON.
+</ParamField>
+
+<ParamField path="datastreams" type="list[Datastream] | EntityList[Datastream] | None" default="None">
+  `Datastream` entities that use this `Sensor`. Accepts a plain list of `Datastream` objects or an `EntityList`; raises `ValueError` if entries are not `Datastream` instances.
+</ParamField>
+
+<ParamField path="multi_datastreams" type="list[MultiDatastream] | EntityList[MultiDatastream] | None" default="None">
+  `MultiDatastream` entities that use this `Sensor`. Accepts a plain list or an `EntityList`.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str">
+  Name of the sensor. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str">
+  Description of the sensor. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="encoding_type" type="str">
+  MIME type of the `metadata` payload. Serialized as `encodingType` in JSON.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary key-value metadata. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="metadata" type="JSON-serializable | None">
+  Supplementary sensor information. Validated for JSON-serializability. Can be a URL string, a dict, or any other JSON-compatible value.
+</ResponseField>
+
+<ResponseField name="datastreams" type="EntityList[Datastream] | None">
+  Datastreams that reference this `Sensor`, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="multi_datastreams" type="EntityList[MultiDatastream] | None">
+  MultiDatastreams that reference this `Sensor`, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+Navigation methods require the entity to be bound to a `service` instance.
+
+<ResponseField name="get_datastreams()" type="Query[Datastream]">
+  Returns a `Query` for all `Datastream` entities that use this `Sensor`.
+</ResponseField>
+
+<ResponseField name="get_multi_datastreams()" type="Query[MultiDatastream]">
+  Returns a `Query` for all `MultiDatastream` entities that use this `Sensor`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a Sensor with a URL metadata reference
+from frost_sta_client.model.sensor import Sensor
+
+sensor = Sensor(
+    name='BME280',
+    description='Bosch BME280 combined temperature, humidity, and pressure sensor.',
+    encoding_type='text/html',
+    metadata='https://www.bosch-sensortec.com/products/environmental-sensors/humidity-sensors-bme280/',
+    properties={
+        'manufacturer': 'Bosch Sensortec',
+        'model': 'BME280',
+        'interface': 'I2C'
+    }
+)
+```
+
+```python Create a Sensor with structured JSON metadata
+from frost_sta_client.model.sensor import Sensor
+
+sensor = Sensor(
+    name='PT100 RTD Temperature Sensor',
+    description='Industrial platinum resistance thermometer for process monitoring.',
+    encoding_type='application/json',
+    metadata={
+        'accuracy': '±0.1 °C',
+        'range': '-200 to 850 °C',
+        'class': 'IEC 60751 Class A'
+    }
+)
+```
+
+```python Create a Sensor via service and link to a Datastream
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+sensor = frost_sta_client.Sensor(
+    name='SHT31 Humidity Sensor',
+    description='Sensirion SHT31 digital humidity and temperature sensor.',
+    encoding_type='text/html',
+    metadata='https://sensirion.com/products/catalog/SHT31-ARP-B/'
+)
+service.create(sensor)
+print(sensor.id)  # set by server after POST
+
+# Reuse when building a Datastream
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
+from frost_sta_client.model.datastream import Datastream
+from frost_sta_client.model.thing import Thing
+from frost_sta_client.model.observedproperty import ObservedProperty
+
+thing = service.things().find(1)
+op = service.observed_properties().find(1)
+
+ds = frost_sta_client.Datastream(
+    name='Relative Humidity',
+    description='Outdoor humidity measured by SHT31',
+    observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
+    unit_of_measurement=UnitOfMeasurement(name='Percent', symbol='%', definition='https://unitsofmeasure.org/ucum#percent'),
+    thing=thing,
+    sensor=sensor,
+    observed_property=op
+)
+service.create(ds)
+```
+
+```python Navigate to all Datastreams for a Sensor
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+sensor = service.sensors().find(3)
+
+for ds in sensor.get_datastreams().query().list().entities:
+    print(ds.name, ds.id)
+```
+</CodeGroup>
+
+<Tip>
+  Use `encoding_type='application/pdf'` and set `metadata` to a URL string when the sensor datasheet is available as a PDF. This is the most common pattern for commercial off-the-shelf sensors.
+</Tip>
+
+<Warning>
+  Setting `metadata` to a value that cannot be JSON-serialized (e.g., a `datetime` object, a `bytes` value) raises a `TypeError`. Convert such objects to strings or dicts before assigning.
+</Warning>

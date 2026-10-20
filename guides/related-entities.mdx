@@ -1,0 +1,193 @@
+---
+title: "Traverse SensorThings Entity Relationships"
+sidebarTitle: "Related Entities"
+description: "Use get_* helpers to navigate entity relationships — from Datastreams to Observations, or Things to Locations — with automatic server-side URL scoping."
+---
+
+The OGC SensorThings API data model is a graph of related entity types: a `Thing` has `Datastream`s, each `Datastream` has `Observation`s, and so on. The FROST Python Client provides two complementary ways to traverse these relationships: **`get_*()` helper methods** that return scoped DAOs for live server queries, and **expanded attributes** populated when you use `expand()` in a query.
+
+## How scoped DAOs work
+
+Each entity class exposes `get_*()` methods for every collection it owns. Calling one of these methods returns a `BaseDao` with its `parent` attribute set to the owning entity. When you call `.query().list()` on the resulting DAO, the client constructs a URL path of the form `EntityType(id)/RelatedEntityType` and sends the request to the server — so the server performs the filtering, not the client.
+
+```text
+Things(42)/Datastreams
+Datastreams(7)/Observations
+Things('my-uuid')/Locations   ← string ids are quoted automatically
+```
+
+---
+
+## Navigating from a Thing
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+thing = service.things().find(42)
+
+# GET /Things(42)/Datastreams
+datastreams = thing.get_datastreams().query().list()
+for ds in datastreams:
+    print(ds.name)
+
+# GET /Things(42)/Locations
+locations = thing.get_locations().query().list()
+for loc in locations:
+    print(loc.name)
+
+# GET /Things(42)/HistoricalLocations
+historical = thing.get_historical_locations().query().list()
+```
+
+Because `get_datastreams()` returns a full DAO, you can chain any query option onto it before calling `.list()`:
+
+```python
+# GET /Things(42)/Datastreams?$filter=name eq 'Temperature'
+temperature_streams = (
+    thing.get_datastreams()
+    .query()
+    .filter("name eq 'Temperature'")
+    .list()
+)
+```
+
+---
+
+## Navigating from a Datastream to its Observations
+
+This is the most common traversal pattern: fetch a `Datastream` by id and then query its `Observation`s with additional filters.
+
+```python
+datastream = service.datastreams().find(1)
+
+# GET /Datastreams(1)/Observations?$filter=result gt 10
+obs_list = (
+    datastream.get_observations()
+    .query()
+    .filter("result gt 10")
+    .orderby("phenomenonTime", "DESC")
+    .top(50)
+    .list()
+)
+
+for obs in obs_list:
+    print(obs.phenomenon_time, "→", obs.result)
+```
+
+---
+
+## Other common traversals
+
+<CodeGroup>
+
+```python Sensor → Datastreams
+sensor = service.sensors().find(3)
+
+# GET /Sensors(3)/Datastreams
+streams = sensor.get_datastreams().query().list()
+```
+
+```python Location → Things
+location = service.locations().find(5)
+
+# GET /Locations(5)/Things
+things = location.get_things().query().list()
+```
+
+```python ObservedProperty → Datastreams
+prop = service.observed_properties().find(2)
+
+# GET /ObservedProperties(2)/Datastreams
+streams = prop.get_datastreams().query().list()
+```
+
+```python Datastream → Sensor / Thing / ObservedProperty
+ds = service.datastreams().find(7)
+
+# GET /Datastreams(7)/Sensor
+sensor = ds.get_sensor().query().list()
+
+# GET /Datastreams(7)/Thing
+thing = ds.get_thing().query().list()
+```
+
+</CodeGroup>
+
+---
+
+## String ids are quoted automatically
+
+When an entity's id is a string (e.g. a UUID), the client surrounds it with single quotes in the URL path, conforming to the OGC SensorThings API specification.
+
+```python
+thing = service.things().find("a1b2-c3d4-e5f6")
+
+# The URL generated is: GET /Things('a1b2-c3d4-e5f6')/Datastreams
+datastreams = thing.get_datastreams().query().list()
+```
+
+For integer ids the quotes are omitted: `Things(42)/Datastreams`.
+
+---
+
+## Inline related entities via expand()
+
+When you already know you will need related data, use `.expand()` in the query to fetch everything in a single HTTP request. The related entities are then available as attributes on the parent object — no extra round-trip required.
+
+```python
+# Single request: GET /Datastreams?$expand=Sensor,Thing,ObservedProperty
+datastreams = (
+    service.datastreams()
+    .query()
+    .expand("Sensor,Thing,ObservedProperty")
+    .list()
+)
+
+for ds in datastreams:
+    print(ds.name)
+    print("  Sensor :", ds.sensor.name)
+    print("  Thing  :", ds.thing.name)
+    print("  OProp  :", ds.observed_property.name)
+```
+
+```python
+# Nested expand: Things with their Datastreams and each Datastream's Observations
+things = (
+    service.things()
+    .query()
+    .expand("Datastreams/Observations")
+    .list()
+)
+
+for thing in things:
+    for ds in thing.datastreams:
+        for obs in ds.observations:
+            print(thing.name, ds.name, obs.result)
+```
+
+<Note>
+  Expanded attributes are only populated when the `expand()` option was included
+  in the query. Accessing `ds.sensor` without having expanded it will return
+  `None` — use `get_sensor().query().list()` for a live fetch.
+</Note>
+
+---
+
+## Choosing between get_*() and expand()
+
+| | `get_*()` + `.query()` | `expand()` |
+|---|---|---|
+| Number of HTTP requests | One per traversal step | One total |
+| Can add filters/order/top | ✅ Yes | Partially (via nested `$expand` options) |
+| Best for | Filtered sub-queries | Bulk fetch with nested data |
+
+<CardGroup cols={2}>
+  <Card title="Querying" icon="magnifying-glass" href="/guides/querying">
+    Full reference for filter, select, expand, orderby, top, and skip
+  </Card>
+  <Card title="CRUD Operations" icon="pencil" href="/guides/crud-operations">
+    Create, update, patch, and delete individual entities
+  </Card>
+</CardGroup>

@@ -1,0 +1,193 @@
+---
+title: "EntityList API Reference"
+sidebarTitle: "EntityList"
+description: "API reference for EntityList — paginated collection returned by query.list(). Auto-fetches next pages during iteration and supports progress callbacks."
+---
+
+`EntityList` is the paginated collection type returned by every `.list()` call on a query object. When a FROST server responds with a large result set it splits the data into pages and includes a `@iot.nextLink` URL for the next chunk. `EntityList` tracks that link and, when you iterate with a `for` loop or call `next()`, it transparently fetches subsequent pages so your code never has to manage pagination manually. An optional callback/step-size pair lets you monitor loading progress on long result sets.
+
+## Class
+
+```text
+frost_sta_client.model.ext.entity_list.EntityList
+```
+
+## Constructor
+
+```python
+EntityList(entity_class: str, entities: list = None)
+```
+
+Creates a new (typically empty) `EntityList`. In normal usage this object is constructed for you by the query layer — you rarely need to instantiate it directly.
+
+<ParamField path="entity_class" type="str" required>
+  Fully-qualified class name string that identifies the type of entities stored in this list (e.g. `"frost_sta_client.model.thing.Thing"`). Used internally when deserializing the next page of results from a JSON response.
+</ParamField>
+
+<ParamField path="entities" type="list" default="[]">
+  Initial list of `Entity` instances to populate the collection with. Defaults to an empty list. Every element must be an instance of `frost_sta_client.model.entity.Entity`; passing non-`Entity` values raises `ValueError`.
+</ParamField>
+
+## Attributes
+
+<ResponseField name="entities" type="list">
+  The in-memory list of `Entity` instances that have been fetched so far. This only contains the pages that have already been retrieved — iterating the list (via `for` or `next()`) appends further pages as they are fetched. You can also iterate `.entities` directly if you want to limit processing to the current page without triggering additional HTTP requests.
+</ResponseField>
+
+<ResponseField name="entity_class" type="str">
+  The fully-qualified class name string supplied at construction time. Must be a `str`; assigning any other type raises `ValueError`.
+</ResponseField>
+
+<ResponseField name="next_link" type="str or None">
+  The `@iot.nextLink` URL returned by the FROST server for the current page. When `None`, the current page is the last page and iteration will raise `StopIteration`. Automatically updated after each page fetch during iteration. Must be a `str` or `None`; other types raise `ValueError`.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService or None">
+  The `SensorThingsService` instance used to execute HTTP requests when fetching additional pages. Set automatically when the list is returned from a query, or manually via `set_service()`. Must be a `SensorThingsService` or `None`.
+</ResponseField>
+
+<ResponseField name="count" type="int or None">
+  The total number of matching entities on the server, populated when the original request included `$count=true`. `None` if `$count` was not requested.
+</ResponseField>
+
+<ResponseField name="callback" type="callable or None">
+  A callable invoked at regular intervals during `for`-loop iteration. Receives a single argument: the current zero-based iteration index. Must be callable or `None`; non-callable values are silently ignored by the setter.
+</ResponseField>
+
+<ResponseField name="step_size" type="int or None">
+  How often (in iterations) `callback` is invoked. The callback fires when `index % step_size == 0`. Must be an `int` or `None`; other types raise `ValueError`.
+</ResponseField>
+
+## Methods
+
+### `__iter__()`
+
+```python
+entity_list.__iter__() → EntityList
+```
+
+Initialises the internal iterator state and returns `self`, making `EntityList` directly usable in `for` statements and `next()` calls. Resets the iteration cursor to the beginning of the currently loaded entities.
+
+---
+
+### `__next__()`
+
+```python
+entity_list.__next__() → Entity
+```
+
+Returns the next `Entity` in the sequence. When all currently loaded entities are exhausted and `next_link` is set, automatically performs a `GET` request to `next_link`, appends the new page of entities to `.entities`, updates `next_link` (or clears it to `None` on the final page), and continues iteration transparently. Raises `StopIteration` when no more entities remain across all pages.
+
+If `callback` and `step_size` are both set, the callback is called whenever `current_index % step_size == 0`.
+
+<Note>
+  `__next__()` requires a `service` to be set before cross-page fetches are attempted. If `service` is `None` and `next_link` is not `None`, the next-page fetch will raise an `AttributeError`.
+</Note>
+
+---
+
+### `get(index)`
+
+```python
+entity_list.get(index: int) → Entity
+```
+
+Returns the entity at the given position within the currently loaded `.entities` list.
+
+<ParamField path="index" type="int" required>
+  Zero-based integer index. Must be a non-negative integer less than `len(entities)`.
+</ParamField>
+
+Raises `IndexError` in three cases:
+- `index` is not an `int`
+- `index >= len(self.entities)`
+- `index < 0`
+
+<Warning>
+  `get()` only looks at the entities already in memory. It does not fetch additional pages. If you need an entity beyond the first page you must iterate the list first so that subsequent pages are loaded into `.entities`.
+</Warning>
+
+---
+
+### `set_service(service)`
+
+```python
+entity_list.set_service(service: SensorThingsService) → None
+```
+
+Sets the `service` attribute on the `EntityList` and propagates it to every `Entity` currently stored in `.entities` by calling `entity.set_service(service)` on each one.
+
+<ParamField path="service" type="SensorThingsService" required>
+  The `SensorThingsService` instance to attach. Must be a valid `SensorThingsService` or `None`.
+</ParamField>
+
+---
+
+### `__getstate__()`
+
+```python
+entity_list.__getstate__() → list
+```
+
+Returns a plain Python list where each element is the `dict` produced by calling `entity.__getstate__()` on the corresponding entity. Used by `jsonpickle` during serialization.
+
+## Iteration Behaviour
+
+`EntityList` implements the full iterator protocol. When you exhaust the current page inside a `for` loop or an explicit `next()` call, the list automatically GETs `next_link` from the FROST server, deserializes the response into the appropriate entity type using `entity_class`, appends the new entities to `.entities`, and updates `next_link` to the value of `@iot.nextLink` in the new response (or `None` if the page is the last one). Iteration then continues seamlessly from the first entity of the new page.
+
+<CodeGroup>
+```python Full iteration (auto-pagination)
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+things = service.things().query().list()
+for thing in things:
+    print(thing.name)  # Fetches additional pages automatically as needed
+```
+
+```python Current page only (no extra HTTP calls)
+things = service.things().query().top(20).list()
+
+for thing in things.entities:   # Iterate .entities directly — no pagination
+    print(thing.name)
+```
+
+```python Progress callback
+def on_progress(index):
+    print(f"Loaded {index} entities so far…")
+
+things = service.things().query().list(callback=on_progress, step_size=100)
+for thing in things:
+    print(thing.name)
+```
+</CodeGroup>
+
+<Note>
+  The `callback` and `step_size` pair is triggered inside `__next__()` during `for`-loop iteration. If you access `.entities` directly (e.g. `things.entities[0]`) the callback is never invoked, because `__next__()` is not called.
+</Note>
+
+## Querying Related Entities
+
+You can also call `.list()` on queries built from navigation properties of an existing entity:
+
+```python
+datastream = service.datastreams().find(1)
+observations = datastream.get_observations().query().filter("result gt 10").list()
+
+for obs in observations:
+    print(obs.result)
+```
+
+## Serialization
+
+`__getstate__()` produces a list suitable for JSON serialization via `jsonpickle`:
+
+```python
+import jsonpickle
+
+things = service.things().query().top(5).list()
+serialized = jsonpickle.encode(things)  # calls __getstate__() internally
+```
+
+The output is a JSON array where each element is the serialized `dict` of the corresponding entity.

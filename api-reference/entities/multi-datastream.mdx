@@ -1,0 +1,256 @@
+---
+title: "MultiDatastream Entity API Reference"
+sidebarTitle: "MultiDatastream"
+description: "API reference for the MultiDatastream entity — groups multiple ObservedProperties into one datastream, enabling multi-valued vector sensor observations."
+---
+
+The `MultiDatastream` entity is a FROST server extension that allows a single sensor to produce observations with multiple simultaneous result components. Where a standard `Datastream` maps to exactly one `ObservedProperty` and yields a scalar result, a `MultiDatastream` links to an ordered list of `ObservedProperty` entities and yields a vector result — one value per property per observation. This is particularly useful for instruments like weather stations that simultaneously report wind speed, wind direction, and gusts in a single measurement burst.
+
+`MultiDatastream` inherits from `Entity`. The `unit_of_measurements` field is a `list` of `UnitOfMeasurement` instances (one per observed property), and `multi_observation_data_types` is a `list` of OGC observation type URIs (also one per property). The `observed_area` setter specifically requires a `geojson.geometry.Polygon` — more restrictive than `Datastream`.
+
+<Note>
+  The lengths of `unit_of_measurements`, `multi_observation_data_types`, and `observed_properties` must all match: each position corresponds to one component of the multi-valued result. Mismatched lengths will cause server-side validation errors.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.multi_datastream import MultiDatastream
+
+MultiDatastream(
+    name='',
+    description='',
+    properties=None,
+    unit_of_measurements=None,
+    observation_type='',
+    multi_observation_data_types=None,
+    observed_area=None,
+    phenomenon_time=None,
+    result_time=None,
+    thing=None,
+    sensor=None,
+    observed_properties=None,
+    observations=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the multi-valued stream (e.g., `'Wind Vector'`). Must be `str`; `None` is permitted.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of the combined measurement. Must be `str`; `None` is permitted.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata. Must be a `dict`; raises `ValueError` otherwise. Resets to `{}` when `None` is assigned.
+</ParamField>
+
+<ParamField path="unit_of_measurements" type="list[UnitOfMeasurement] | None" default="None">
+  An ordered list of `UnitOfMeasurement` objects — one per observed property component. Raises `ValueError` if any entry is not a `UnitOfMeasurement` instance.
+</ParamField>
+
+<ParamField path="observation_type" type="str" default='""'>
+  The overarching OGC observation type URI for this stream. For multi-valued observations use `'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_ComplexObservation'`. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="multi_observation_data_types" type="list[str] | None" default="[]">
+  An ordered list of OGC observation type URIs, one per component — e.g. `['http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement', ...]`. Raises `ValueError` if any entry is not a `str`.
+</ParamField>
+
+<ParamField path="observed_area" type="geojson.geometry.Polygon | None" default="None">
+  The bounding polygon of all observations in this stream. Must be a `geojson.geometry.Polygon`; raises `ValueError` for any other type including other GeoJSON geometries.
+</ParamField>
+
+<ParamField path="phenomenon_time" type="str | datetime | None" default="None">
+  Aggregate temporal span of all observations. Accepts ISO 8601 string or `datetime`.
+</ParamField>
+
+<ParamField path="result_time" type="str | datetime | None" default="None">
+  Aggregate result-time span of observations. Same format rules as `phenomenon_time`.
+</ParamField>
+
+<ParamField path="thing" type="Thing | None" default="None">
+  The `Thing` owning this multi-datastream. Must be a `Thing` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="sensor" type="Sensor | None" default="None">
+  The `Sensor` producing observations for this stream. Must be a `Sensor` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="observed_properties" type="list[ObservedProperty] | EntityList[ObservedProperty] | None" default="None">
+  An ordered list of `ObservedProperty` entities, one per result component. Raises `ValueError` if entries are not `ObservedProperty` instances.
+</ParamField>
+
+<ParamField path="observations" type="list[Observation] | EntityList[Observation] | None" default="None">
+  `Observation` entities in this stream. Accepts a plain list or `EntityList`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str | None">
+  Name of the multi-datastream. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str | None">
+  Description of the stream. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary key-value metadata.
+</ResponseField>
+
+<ResponseField name="unit_of_measurements" type="list[UnitOfMeasurement] | None">
+  Ordered list of unit descriptors. Serialized as `unitOfMeasurements` in JSON.
+</ResponseField>
+
+<ResponseField name="observation_type" type="str">
+  Overarching OGC observation type URI. Serialized as `observationType`.
+</ResponseField>
+
+<ResponseField name="multi_observation_data_types" type="list[str] | None">
+  Per-component OGC type URIs. Serialized as `multiObservationDataTypes`.
+</ResponseField>
+
+<ResponseField name="observed_area" type="geojson.geometry.Polygon | None">
+  Bounding polygon of all observations. Must be a `geojson.geometry.Polygon`.
+</ResponseField>
+
+<ResponseField name="phenomenon_time" type="str | datetime | None">
+  Aggregate phenomenon time span of all observations.
+</ResponseField>
+
+<ResponseField name="result_time" type="str | datetime | None">
+  Aggregate result time span of all observations.
+</ResponseField>
+
+<ResponseField name="thing" type="Thing | None">
+  The owning `Thing`.
+</ResponseField>
+
+<ResponseField name="sensor" type="Sensor | None">
+  The producing `Sensor`.
+</ResponseField>
+
+<ResponseField name="observed_properties" type="EntityList[ObservedProperty] | None">
+  Ordered list of observed properties, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="observations" type="EntityList[Observation] | None">
+  Observations in this stream, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+<ResponseField name="get_observations()" type="Query[Observation]">
+  Returns a `Query` for all `Observation` entities in this `MultiDatastream`. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+<ResponseField name="get_observed_properties()" type="Query[ObservedProperty]">
+  Returns a `Query` for all `ObservedProperty` entities linked to this `MultiDatastream`. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a MultiDatastream for a wind vector sensor
+from frost_sta_client.model.multi_datastream import MultiDatastream
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
+
+OM_MEASUREMENT = 'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement'
+
+mds = MultiDatastream(
+    name='Wind Vector',
+    description='Simultaneous wind speed and direction measurement.',
+    observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_ComplexObservation',
+    multi_observation_data_types=[OM_MEASUREMENT, OM_MEASUREMENT],
+    unit_of_measurements=[
+        UnitOfMeasurement(name='Metre per second', symbol='m/s',
+                          definition='http://unitsofmeasure.org/ucum.html#m.s-1'),
+        UnitOfMeasurement(name='Degree', symbol='°',
+                          definition='http://unitsofmeasure.org/ucum.html#deg')
+    ],
+    thing=thing,
+    sensor=sensor,
+    observed_properties=[speed_op, direction_op]
+)
+```
+
+```python Create via service and post observations
+import frost_sta_client
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+OM_MEASUREMENT = 'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement'
+
+thing = service.things().find(1)
+sensor = service.sensors().find(2)
+speed_op = service.observed_properties().find(3)
+direction_op = service.observed_properties().find(4)
+
+mds = frost_sta_client.MultiDatastream(
+    name='Wind Vector',
+    description='Hourly average wind speed and direction.',
+    observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_ComplexObservation',
+    multi_observation_data_types=[OM_MEASUREMENT, OM_MEASUREMENT],
+    unit_of_measurements=[
+        UnitOfMeasurement('Metre per second', 'm/s', 'http://unitsofmeasure.org/ucum.html#m.s-1'),
+        UnitOfMeasurement('Degree', '°', 'http://unitsofmeasure.org/ucum.html#deg')
+    ],
+    thing=thing,
+    sensor=sensor,
+    observed_properties=[speed_op, direction_op]
+)
+service.create(mds)
+
+# Each observation result must be a list with one value per component
+obs = frost_sta_client.Observation(
+    phenomenon_time='2024-06-15T12:00:00Z',
+    result=[4.7, 270.0],   # [speed m/s, direction °]
+    multi_datastream=mds
+)
+service.create(obs)
+```
+
+```python Query observations for a MultiDatastream
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+mds = service.multi_datastreams().find(2)
+
+obs_list = mds.get_observations().query().order_by('phenomenonTime desc').top(5).list()
+for obs in obs_list.entities:
+    print(obs.phenomenon_time, obs.result)
+    # obs.result is a list, e.g. [5.1, 245.0]
+```
+</CodeGroup>
+
+<Tip>
+  When posting `Observation` results to a `MultiDatastream`, the `result` must be a `list` whose length matches the number of `ObservedProperty` entries. The i-th element of the result corresponds to the i-th `ObservedProperty` in `observed_properties`.
+</Tip>
+
+<Warning>
+  The `observed_area` setter in `MultiDatastream` is stricter than in `Datastream` — it only accepts `geojson.geometry.Polygon`, not arbitrary GeoJSON geometries or dicts. Passing a `geojson.Point` or a raw dict raises a `ValueError`.
+</Warning>

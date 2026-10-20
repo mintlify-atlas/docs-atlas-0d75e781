@@ -1,72 +1,94 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mintlify Starter Kit",
+  "name": "FROST Python Client",
+  "theme": "luma",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
-  },
-  "favicon": "/favicon.svg",
-  "navigation": {
-    "pages": [
-      {
-        "group": "Getting Started",
-        "pages": [
-          "index",
-          "quickstart"
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "primary": "#1A6FBF",
+    "light": "#3B9EE8",
+    "dark": "#0D4A8C"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:support@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://app.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/FraunhoferIOSB/FROST-Python-Client"
     }
-  },
-  "contextual": {
-    "options": [
-      "copy",
-      "view",
-      "chatgpt",
-      "claude",
-      "perplexity",
-      "mcp",
-      "cursor",
-      "vscode"
-    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/FraunhoferIOSB/FROST-Python-Client"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sensorthings-model",
+              "concepts/service",
+              "concepts/entities",
+              "concepts/queries"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/crud-operations",
+              "guides/querying",
+              "guides/related-entities",
+              "guides/data-arrays",
+              "guides/authentication",
+              "guides/pagination"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Service",
+            "pages": [
+              "api-reference/sensor-things-service",
+              "api-reference/auth-handler",
+              "api-reference/query"
+            ]
+          },
+          {
+            "group": "Entities",
+            "pages": [
+              "api-reference/entities/thing",
+              "api-reference/entities/location",
+              "api-reference/entities/sensor",
+              "api-reference/entities/observed-property",
+              "api-reference/entities/datastream",
+              "api-reference/entities/observation",
+              "api-reference/entities/feature-of-interest",
+              "api-reference/entities/multi-datastream",
+              "api-reference/entities/actuator",
+              "api-reference/entities/tasking"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api-reference/extensions/entity-list",
+              "api-reference/extensions/data-array",
+              "api-reference/extensions/unit-of-measurement"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }

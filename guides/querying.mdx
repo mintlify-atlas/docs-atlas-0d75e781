@@ -1,0 +1,244 @@
+---
+title: "Query SensorThings Entity Lists with Filters and Expansions"
+sidebarTitle: "Querying"
+description: "Use the FROST Python Client query builder to filter, select, expand, order, and paginate SensorThings entity lists using OData query options."
+---
+
+The FROST Python Client's query builder maps directly onto the [OData](https://www.odata.org/) system query options supported by FROST Server. Every DAO returned by methods like `service.things()` or `service.observations()` exposes a `.query()` method that returns a fluent `Query` object. You chain options onto it and call `.list()` to execute the request and receive an `EntityList`.
+
+## Starting a query
+
+Call `.query()` on any DAO accessor to get a `Query` instance, then invoke `.list()` to execute it.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+# GET /Things
+things_list = service.things().query().list()
+
+for thing in things_list:
+    print(thing.name)
+```
+
+All query option methods return `self`, so every call is chainable. The request is not sent until `.list()` is called.
+
+---
+
+## filter()
+
+`filter(statement)` appends a `$filter` OData expression to the request. The statement is a string written in OData filter syntax.
+
+<CodeGroup>
+
+```python Equality and comparison
+# Exact id match
+things = service.things().query().filter("id eq 1").list()
+
+# String equality — single quotes inside the f-string
+things = service.things().query().filter("name eq 'Weather Station Alpha'").list()
+
+# Numeric comparison on Observation results
+obs = service.observations().query().filter("result gt 10").list()
+obs = service.observations().query().filter("result le 100").list()
+```
+
+```python String functions
+# Starts-with filter
+things = service.things().query().filter("startswith(name, 'Temp')").list()
+
+# Contains filter
+things = service.things().query().filter("substringof('sensor', description)").list()
+```
+
+```python Date comparisons
+# Observations since a fixed timestamp
+obs = (
+    service.observations()
+    .query()
+    .filter("phenomenonTime gt 2024-01-01T00:00:00Z")
+    .list()
+)
+
+# Observations within a time window
+obs = (
+    service.observations()
+    .query()
+    .filter(
+        "phenomenonTime ge 2024-06-01T00:00:00Z "
+        "and phenomenonTime lt 2024-07-01T00:00:00Z"
+    )
+    .list()
+)
+```
+
+</CodeGroup>
+
+---
+
+## select()
+
+`select(*args)` limits the fields returned by the server, reducing payload size. Pass each property name as a separate string argument.
+
+```python
+# Only return name and description for each Thing
+things = service.things().query().select("name", "description").list()
+
+for thing in things:
+    print(thing.name)       # populated
+    print(thing.properties) # None — not selected
+```
+
+<Note>
+  `@iot.id` (mapped to `entity.id`) is always included by the server regardless
+  of your `select` list.
+</Note>
+
+---
+
+## expand()
+
+`expand(expansion)` inlines related entities within the response using the `$expand` OData option. This avoids separate round-trips when you need related data.
+
+<CodeGroup>
+
+```python Single expand
+# Inline Datastreams inside each Thing
+things = service.things().query().expand("Datastreams").list()
+
+for thing in things:
+    # thing.datastreams is an EntityList populated from the inline data
+    for ds in thing.datastreams:
+        print(ds.name)
+```
+
+```python Nested expand
+# Inline Datastreams and then Observations within each Datastream
+things = (
+    service.things()
+    .query()
+    .expand("Datastreams/Observations")
+    .list()
+)
+
+for thing in things:
+    for ds in thing.datastreams:
+        for obs in ds.observations:
+            print(obs.result)
+```
+
+```python Expand with select
+# Expand Sensor but only return its name and description
+datastreams = (
+    service.datastreams()
+    .query()
+    .expand("Sensor($select=name,description)")
+    .list()
+)
+```
+
+</CodeGroup>
+
+---
+
+## orderby()
+
+`orderby(criteria, order)` sorts the result set. `order` defaults to `'DESC'`; pass `'ASC'` for ascending order.
+
+```python
+# Most recent Observations first
+obs = (
+    service.observations()
+    .query()
+    .orderby("phenomenonTime", "DESC")
+    .list()
+)
+
+# Things alphabetically A → Z
+things = service.things().query().orderby("name", "ASC").list()
+```
+
+---
+
+## top() and skip()
+
+`top(num)` sets the maximum number of entities returned per page (`$top`). `skip(num)` skips the first *n* entities (`$skip`), enabling manual offset pagination.
+
+```python
+# First 100 Things
+things = service.things().query().top(100).list()
+
+# Things 201–300 (third page of 100)
+things = service.things().query().skip(200).top(100).list()
+```
+
+<Tip>
+  For transparent automatic pagination across all pages, simply iterate over the
+  `EntityList` without `skip()`. See the [Pagination guide](/guides/pagination)
+  for details.
+</Tip>
+
+---
+
+## count()
+
+Adding `.count()` instructs the server to include the total number of matching entities in the response (as `@iot.count`), regardless of the page size. After calling `.list()` the total is available on `entity_list.count`.
+
+```python
+things_list = service.things().query().count().list()
+
+print(f"Total Things on server: {things_list.count}")
+print(f"Entities in this page : {len(things_list.entities)}")
+```
+
+---
+
+## Chaining all options together
+
+All query methods return the same `Query` object, so you can chain as many options as you need in a single expression.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+obs_list = (
+    service.observations()
+    .query()
+    .filter("result gt 5")
+    .orderby("phenomenonTime", "DESC")
+    .select("result", "phenomenonTime")
+    .top(20)
+    .count()
+    .list()
+)
+
+print(f"Showing {len(obs_list.entities)} of {obs_list.count} total")
+
+for obs in obs_list:
+    print(obs.phenomenonTime, "→", obs.result)
+```
+
+---
+
+## EntityList return value
+
+`.list()` always returns a `frost_sta_client.model.ext.entity_list.EntityList` object.
+
+| Attribute | Type | Description |
+|---|---|---|
+| `entity_list.entities` | `list` | Entities on the current page |
+| `entity_list.count` | `int \| None` | Total count (only set when `.count()` was chained) |
+| `entity_list.next_link` | `str \| None` | Server-provided URL for the next page |
+
+Iterating directly over the `EntityList` (i.e. `for obs in obs_list`) automatically follows `next_link` across all pages. To stay on the current page only, iterate over `entity_list.entities`.
+
+<CardGroup cols={2}>
+  <Card title="Pagination" icon="arrow-right" href="/guides/pagination">
+    Iterate across pages automatically or use callbacks to track progress
+  </Card>
+  <Card title="Related Entities" icon="diagram-project" href="/guides/related-entities">
+    Scope queries to a parent entity using get_* helpers
+  </Card>
+</CardGroup>

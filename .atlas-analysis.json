@@ -1,0 +1,142 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "FROST Python Client",
+  "projectDescription": "A Python client library for interacting with OGC SensorThings API servers, providing CRUD operations, query building, and entity relationship traversal.",
+  "theme": "luma",
+  "primaryColor": "#1A6FBF",
+  "lightColor": "#3B9EE8",
+  "darkColor": "#0D4A8C",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/sensorthings-model",
+              "concepts/service",
+              "concepts/entities",
+              "concepts/queries"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/crud-operations",
+              "guides/querying",
+              "guides/related-entities",
+              "guides/data-arrays",
+              "guides/authentication",
+              "guides/pagination"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Service",
+            "pages": [
+              "api-reference/sensor-things-service",
+              "api-reference/auth-handler",
+              "api-reference/query"
+            ]
+          },
+          {
+            "group": "Entities",
+            "pages": [
+              "api-reference/entities/thing",
+              "api-reference/entities/location",
+              "api-reference/entities/sensor",
+              "api-reference/entities/observed-property",
+              "api-reference/entities/datastream",
+              "api-reference/entities/observation",
+              "api-reference/entities/feature-of-interest",
+              "api-reference/entities/multi-datastream",
+              "api-reference/entities/actuator",
+              "api-reference/entities/tasking"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "api-reference/extensions/entity-list",
+              "api-reference/extensions/data-array",
+              "api-reference/extensions/unit-of-measurement"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Full CRUD operations (create, read, update, patch, delete) for all SensorThings API entities",
+    "Fluent query builder with filter, select, expand, orderby, top, skip, and count support",
+    "Automatic pagination via EntityList iterator with server-side next-link following",
+    "DataArray extension for batched Observation creation in a single HTTP request",
+    "Related-entity traversal (e.g., get Observations of a Datastream) via get_* helper methods",
+    "Basic HTTP authentication support via AuthHandler",
+    "HTTP proxy support",
+    "Progress callback support during large entity list iteration",
+    "MultiDatastream support for multi-valued observations",
+    "Tasking extension support (Actuator, TaskingCapability, Task)"
+  ],
+  "publicApiSurface": [
+    "SensorThingsService(url, auth_handler, proxies)",
+    "SensorThingsService.create(entity)",
+    "SensorThingsService.update(entity)",
+    "SensorThingsService.patch(entity, patches)",
+    "SensorThingsService.delete(entity)",
+    "SensorThingsService.things() → ThingDao",
+    "SensorThingsService.datastreams() → DatastreamDao",
+    "SensorThingsService.observations() → ObservationDao",
+    "SensorThingsService.sensors() → SensorDao",
+    "SensorThingsService.locations() → LocationDao",
+    "SensorThingsService.observed_properties() → ObservedPropertyDao",
+    "SensorThingsService.features_of_interest() → FeaturesOfInterestDao",
+    "SensorThingsService.historical_locations() → HistoricalLocationDao",
+    "SensorThingsService.multi_datastreams() → MultiDatastreamDao",
+    "SensorThingsService.actuators() → ActuatorDao",
+    "SensorThingsService.tasks() → TaskDao",
+    "SensorThingsService.tasking_capabilities() → TaskingCapabilityDao",
+    "BaseDao.find(id) → Entity",
+    "BaseDao.query() → Query",
+    "Query.filter(statement)",
+    "Query.select(*args)",
+    "Query.expand(expansion)",
+    "Query.orderby(criteria, order)",
+    "Query.top(num)",
+    "Query.skip(num)",
+    "Query.count()",
+    "Query.list(callback, step_size) → EntityList",
+    "EntityList.__iter__ / __next__ (auto-pagination)",
+    "EntityList.entities",
+    "AuthHandler(username, password)",
+    "Thing(name, description, properties, locations, ...)",
+    "Location(name, description, encoding_type, location, ...)",
+    "Sensor(name, description, encoding_type, metadata, ...)",
+    "ObservedProperty(name, definition, description, ...)",
+    "Datastream(name, description, observation_type, unit_of_measurement, ...)",
+    "Observation(phenomenon_time, result, result_time, datastream, ...)",
+    "FeatureOfInterest(name, description, encoding_type, feature, ...)",
+    "MultiDatastream(name, description, ...)",
+    "Actuator(name, description, encoding_type, ...)",
+    "TaskingCapability(name, description, ...)",
+    "Task(creation_time, tasking_parameters, ...)",
+    "UnitOfMeasurement(name, symbol, definition)",
+    "DataArrayValue",
+    "DataArrayDocument",
+    "EntityList",
+    "EntityTypes"
+  ]
+}

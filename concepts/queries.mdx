@@ -1,0 +1,280 @@
+---
+title: "Query Builder: Filter, Expand, and Order Entity Lists"
+sidebarTitle: "Queries"
+description: "The FROST Python Client Query builder maps to OData query options. Chain filter, select, expand, orderby, top, skip, and count to shape your API responses."
+---
+
+The FROST Python Client includes a fluent `Query` builder that maps directly onto OData query options supported by the SensorThings API. Rather than constructing URL query strings by hand, you chain method calls on a `Query` object, then call `.list()` to execute the request and receive an `EntityList`. Every method returns `self`, so calls can be chained in any order.
+
+## Getting a Query Object
+
+Every DAO returned by a service accessor exposes a `.query()` method. Call it with no arguments to obtain a fresh `Query` instance scoped to that entity collection.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1")
+
+# Top-level collection query
+query = service.things().query()
+
+# Related-entity query (scoped to a specific parent)
+datastream = service.datastreams().find(5)
+obs_query = datastream.get_observations().query()
+```
+
+The `Query` object holds a `params` dictionary that accumulates OData query options as you call builder methods. Nothing is sent to the server until you call `.list()`.
+
+## Builder Methods
+
+Each method overwrites any previous value for the same OData parameter (duplicate calls replace earlier ones), then returns `self` for chaining.
+
+### filter()
+
+```python
+query.filter(statement)
+```
+
+Appends a `$filter` expression using OData filter syntax. The `statement` is a raw string passed directly to the server.
+
+<ParamField path="statement" type="str | None">
+  An OData filter expression string. Passing `None` removes any previously set filter.
+</ParamField>
+
+```python
+# Simple equality
+service.things().query().filter("id eq 1").list()
+
+# Comparison on a numeric result
+service.observations().query().filter("result gt 10").list()
+
+# String match
+service.things().query().filter("name eq 'Weather Station Alpha'").list()
+
+# Combined with 'and'
+service.observations().query().filter("result gt 0 and result lt 100").list()
+```
+
+<Note>
+  OData filter syntax uses single quotes for string literals (`'value'`), not double quotes. Operators include `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `and`, `or`, `not`. Functions like `substringof`, `startswith`, `endswith`, `year()`, `month()`, `day()` are also supported by FROST servers.
+</Note>
+
+### select()
+
+```python
+query.select(*args)
+```
+
+Restricts the response to only the named properties, mapping to the `$select` OData option. Pass property names as individual string arguments. Reduces response payload significantly for large collections.
+
+<ParamField path="*args" type="str">
+  One or more property name strings. Non-string arguments are silently ignored.
+</ParamField>
+
+```python
+# Return only name and description for each Thing
+service.things().query().select("name", "description").list()
+
+# Select a single property
+service.sensors().query().select("name").list()
+```
+
+### expand()
+
+```python
+query.expand(expansion)
+```
+
+Requests that the server inline related entities in the response, mapping to `$expand`. Related entities are deserialised into the entity's typed reference properties automatically.
+
+<ParamField path="expansion" type="str">
+  An OData expand expression string. Use `/` for nested expansions and `,` to expand multiple relations simultaneously.
+</ParamField>
+
+```python
+# Expand the linked Thing, Sensor, and ObservedProperty for each Datastream
+service.datastreams().query().expand("Thing,Sensor,ObservedProperty").list()
+
+# Nested expand: Datastreams and their Observations in one request
+service.things().query().expand("Datastreams/Observations").list()
+
+# Combine expand with filter
+service.things().query() \
+    .expand("Datastreams") \
+    .filter("name eq 'Station 01'") \
+    .list()
+```
+
+### orderby()
+
+```python
+query.orderby(criteria, order='DESC')
+```
+
+Sorts the result collection by a property, mapping to `$orderby`.
+
+<ParamField path="criteria" type="str" required>
+  The property name to sort by, e.g. `"phenomenonTime"` or `"result"`.
+</ParamField>
+
+<ParamField path="order" type="str" default='"DESC"'>
+  Sort direction: `"ASC"` for ascending, `"DESC"` for descending (the default).
+</ParamField>
+
+```python
+# Most recent observations first (default DESC)
+service.observations().query().orderby("phenomenonTime").list()
+
+# Oldest first
+service.observations().query().orderby("phenomenonTime", order="ASC").list()
+```
+
+### top()
+
+```python
+query.top(num)
+```
+
+Limits the number of entities returned in the first page, mapping to `$top`. Useful for pagination or when you only need a sample of the data.
+
+<ParamField path="num" type="int" required>
+  Maximum number of entities to return.
+</ParamField>
+
+```python
+# Return at most 10 Things
+service.things().query().top(10).list()
+
+# Latest 5 observations
+service.observations().query().orderby("phenomenonTime").top(5).list()
+```
+
+### skip()
+
+```python
+query.skip(num)
+```
+
+Skips the first `num` entities in the result set, mapping to `$skip`. Combine with `top()` for manual offset-based pagination.
+
+<ParamField path="num" type="int" required>
+  Number of entities to skip before returning results.
+</ParamField>
+
+```python
+# Skip the first 20 and return the next 10 (page 3 of size 10)
+service.things().query().skip(20).top(10).list()
+```
+
+### count()
+
+```python
+query.count()
+```
+
+Requests that the server include the total number of matching entities in the response (`$count=true`). The count is available on the returned `EntityList` via `.count`.
+
+```python
+entity_list = service.things().query().count().list()
+print(f"Total Things on server: {entity_list.count}")
+```
+
+## Executing the Query: list()
+
+```python
+query.list(callback=None, step_size=None)
+```
+
+Executes the built query against the server and returns an `EntityList`. This is the only method that performs a network request. All accumulated OData parameters are appended as URL query arguments to the entity collection path.
+
+<ParamField path="callback" type="callable | None" default="None">
+  A function to call periodically during iteration. Called with the current entity index as its only argument. Only active when `step_size` is also provided.
+</ParamField>
+
+<ParamField path="step_size" type="int | None" default="None">
+  How often (every N entities iterated) the callback is invoked. Has no effect without a `callback`.
+</ParamField>
+
+```python
+things = service.things().query().list()
+
+# With a progress callback
+def on_progress(idx):
+    print(f"Iterated {idx} entities")
+
+things = service.things().query().list(callback=on_progress, step_size=50)
+for thing in things:
+    pass  # callback fires every 50 entities
+```
+
+The returned `EntityList` automatically follows `@iot.nextLink` pagination when you iterate over it with a `for` loop. If you only want the first page, iterate over `entity_list.entities` (the raw list) instead.
+
+## Chaining Multiple Options
+
+All builder methods return `self`, so they can be freely chained in any order before the terminal `.list()` call.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1")
+
+# A fully composed query
+observations = (
+    service.observations()
+    .query()
+    .filter("result gt 25.0")
+    .orderby("phenomenonTime", order="ASC")
+    .select("result", "phenomenonTime")
+    .top(100)
+    .count()
+    .list()
+)
+
+print(f"Matched {observations.count} total observations")
+for obs in observations:
+    print(obs.phenomenon_time, obs.result)
+```
+
+## Queries on Related Entity Collections
+
+When a DAO has its `parent` attribute set — either by calling `get_*()` on an entity or by assigning it manually — the resulting query URL is scoped to the parent entity. This is how you query the Observations of a specific Datastream, or the Datastreams of a specific Thing.
+
+```python
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1")
+
+# Get observations belonging only to Datastream 5
+datastream = service.datastreams().find(5)
+obs = (
+    datastream.get_observations()
+    .query()
+    .filter("result gt 10")
+    .orderby("phenomenonTime")
+    .top(50)
+    .list()
+)
+# Issues GET .../Datastreams(5)/Observations?$filter=result gt 10&$orderby=...&$top=50
+
+# Get all Datastreams for Thing 3
+thing = service.things().find(3)
+streams = thing.get_datastreams().query().expand("Sensor,ObservedProperty").list()
+```
+
+<Tip>
+  The URL built by `.list()` for a scoped query is `<base_url>/ParentType(id)/ChildCollection?<params>`. The `SensorThingsService.get_full_path()` method constructs this path — string IDs are automatically quoted (`ParentType('string-id')/ChildCollection`), so you don't need to worry about URL encoding.
+</Tip>
+
+## OData Parameter Reference
+
+| Builder method | OData parameter | Example value |
+|---|---|---|
+| `.filter("result gt 5")` | `$filter` | `result gt 5` |
+| `.select("name", "description")` | `$select` | `name,description` |
+| `.expand("Datastreams")` | `$expand` | `Datastreams` |
+| `.orderby("phenomenonTime", "ASC")` | `$orderby` | `phenomenonTime ASC` |
+| `.top(20)` | `$top` | `20` |
+| `.skip(40)` | `$skip` | `40` |
+| `.count()` | `$count` | `true` |
+
+<Warning>
+  OData filter expressions are passed to the server as-is without client-side validation. If the expression contains a syntax error or references a property that does not exist on the entity type, the server will return an HTTP 400 error, which the client raises as a `requests.exceptions.HTTPError`.
+</Warning>

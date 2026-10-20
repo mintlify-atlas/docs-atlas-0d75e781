@@ -1,0 +1,233 @@
+---
+title: "Create, Read, Update, and Delete SensorThings Entities"
+sidebarTitle: "CRUD Operations"
+description: "Learn how to create, find, update, patch, and delete SensorThings entities using the FROST Python Client's service methods and DAO layer."
+---
+
+The FROST Python Client exposes a clean interface for all four CRUD operations — create, read, update, and delete — through the `SensorThingsService` object. Every entity type (Things, Datastreams, Observations, Sensors, and more) shares the same underlying `BaseDao` implementation, so the patterns you learn for `Thing` apply identically across the entire SensorThings data model.
+
+## Setup
+
+Before performing any CRUD operation, instantiate a `SensorThingsService` pointing at your FROST Server endpoint.
+
+```python
+import frost_sta_client as fsc
+
+url = "https://example.com/FROST-Server/v1.1"
+service = fsc.SensorThingsService(url)
+```
+
+If your server requires authentication, see the [Authentication guide](/guides/authentication).
+
+---
+
+## Create
+
+`service.create(entity)` serialises the entity to JSON and sends an HTTP `POST` to the collection endpoint (e.g. `POST /Things`). On success the server returns a `201 Created` response whose `Location` header contains the new entity's URL. The client automatically parses that URL and writes the integer or string id back onto `entity.id`.
+
+```python
+from geojson import Point
+
+# Build a Location to attach to the Thing
+point = Point((-115.81, 37.24))
+location = fsc.Location(
+    name="Desert Sensor Site",
+    description="Remote sensor deployment in the Mojave",
+    location=point,
+    encoding_type="application/geo+json",
+)
+
+# Build the Thing — nested entities are created in the same POST
+thing = fsc.Thing(
+    name="Weather Station Alpha",
+    description="Measures temperature and humidity",
+    properties={"owner": "IOSB", "active": True},
+)
+thing.locations = [location]
+
+service.create(thing)
+
+# entity.id is now populated from the Location header
+print(f"Created Thing with id: {thing.id}")
+```
+
+<Note>
+  Nested entities (like the `Location` inside `thing.locations`) are created in
+  the same HTTP request. The server assigns ids to all of them atomically.
+</Note>
+
+---
+
+## Read (find by id)
+
+Every DAO returned by methods like `service.things()` or `service.datastreams()` exposes a `find(id)` method. It sends `GET /Things(id)` and returns a fully deserialised entity with its `service` reference set so you can perform further navigation.
+
+```python
+# Fetch a Thing by its integer id
+thing = service.things().find(42)
+print(thing.name)
+print(thing.description)
+print(thing.properties)
+
+# String ids are also supported — the client quotes them automatically
+# GET /Things('my-uuid-string')
+thing = service.things().find("my-uuid-string")
+```
+
+<Tip>
+  `find()` raises `requests.exceptions.HTTPError` (status 404) if the entity
+  does not exist. Wrap it in a `try/except` block when the id is user-supplied.
+</Tip>
+
+To retrieve a *list* of entities rather than a single one, use `service.things().query().list()`. See the [Querying guide](/guides/querying) for the full query API.
+
+---
+
+## Update (full replacement)
+
+`service.update(entity)` sends a `PUT` request to `EntityType(id)`. The server replaces the stored resource entirely with the provided body, so every field you want to keep must be present in the entity. The entity **must** carry a valid `id`.
+
+```python
+# First fetch the current state
+thing = service.things().find(42)
+
+# Modify the fields you want to change
+thing.name = "Weather Station Alpha — Upgraded"
+thing.description = "Upgraded firmware v2.0"
+thing.properties["firmware"] = "2.0"
+
+# PUT /Things(42) — full replacement
+service.update(thing)
+```
+
+<Warning>
+  Because `update()` issues a full `PUT`, any field not present in the entity
+  object will be cleared on the server. Fetch the entity first, modify only what
+  you need, and then call `update()`.
+</Warning>
+
+---
+
+## Patch (partial update)
+
+`service.patch(entity, patches)` sends a `PATCH` request with `Content-Type: application/json-patch+json`, implementing [RFC 6902 JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902). Only the listed operations are applied; everything else on the server stays untouched. The entity must have a valid `id`; its other fields are used only to identify the target.
+
+The `patches` argument accepts either:
+- A `jsonpatch.JsonPatch` object
+- A plain Python `list` of operation dicts
+
+<CodeGroup>
+
+```python List of dicts
+import frost_sta_client as fsc
+
+thing = service.things().find(42)
+
+patches = [
+    {"op": "replace", "path": "/name", "value": "Renamed Station"},
+    {"op": "replace", "path": "/description", "value": "New description"},
+    {"op": "add",     "path": "/properties/verified", "value": True},
+]
+
+# PATCH /Things(42)
+service.patch(thing, patches)
+```
+
+```python jsonpatch object
+import jsonpatch
+import frost_sta_client as fsc
+
+thing = service.things().find(42)
+
+patch = jsonpatch.JsonPatch([
+    {"op": "replace", "path": "/name", "value": "Renamed Station"},
+    {"op": "remove",  "path": "/properties/legacy"},
+])
+
+service.patch(thing, patch)
+```
+
+</CodeGroup>
+
+<Note>
+  Valid RFC 6902 operations are `add`, `remove`, `replace`, `move`, `copy`, and
+  `test`. Providing an invalid operation dict raises a `ValueError` before the
+  request is sent.
+</Note>
+
+---
+
+## Delete
+
+`service.delete(entity)` sends `DELETE /EntityType(id)`. The entity object must have its `id` set. No response body is returned by the server on success.
+
+```python
+thing = service.things().find(42)
+
+# DELETE /Things(42)
+service.delete(thing)
+
+print("Thing deleted successfully")
+```
+
+---
+
+## DAO layer and convenience wrappers
+
+The `service.create()`, `service.update()`, `service.patch()`, and `service.delete()` methods are thin wrappers. Internally each one calls `entity.get_dao(service)` to resolve the correct DAO class for that entity type, then delegates to the DAO. You can call the DAO methods directly if you prefer:
+
+```python
+dao = service.things()        # returns a ThingDao (inherits BaseDao)
+
+# All four operations are available on the DAO itself
+dao.create(new_thing)
+dao.update(existing_thing)
+dao.patch(existing_thing, patches)
+dao.delete(existing_thing)
+
+# find() and query() are DAO-only (no service.find() shortcut)
+thing = dao.find(42)
+thing_list = dao.query().filter("name eq 'Alpha'").list()
+```
+
+Available DAO accessors on `SensorThingsService`:
+
+| Method | DAO |
+|---|---|
+| `service.things()` | `ThingDao` |
+| `service.datastreams()` | `DatastreamDao` |
+| `service.observations()` | `ObservationDao` |
+| `service.sensors()` | `SensorDao` |
+| `service.locations()` | `LocationDao` |
+| `service.observed_properties()` | `ObservedPropertyDao` |
+| `service.features_of_interest()` | `FeaturesOfInterestDao` |
+| `service.historical_locations()` | `HistoricalLocationDao` |
+| `service.multi_datastreams()` | `MultiDatastreamDao` |
+| `service.actuators()` | `ActuatorDao` |
+| `service.tasks()` | `TaskDao` |
+| `service.tasking_capabilities()` | `TaskingCapabilityDao` |
+
+---
+
+## Error handling
+
+All HTTP errors surface as `requests.exceptions.HTTPError`. The client calls `response.raise_for_status()` after every request, so any non-2xx response is immediately raised.
+
+```python
+import requests
+
+try:
+    thing = service.things().find(99999)
+except requests.exceptions.HTTPError as e:
+    print(f"HTTP error: {e.response.status_code}")
+    print(e.response.text)
+```
+
+<CardGroup cols={2}>
+  <Card title="Querying" icon="magnifying-glass" href="/guides/querying">
+    Filter, select, expand, and paginate entity lists
+  </Card>
+  <Card title="Related Entities" icon="diagram-project" href="/guides/related-entities">
+    Navigate relationships between Things, Datastreams, and Observations
+  </Card>
+</CardGroup>

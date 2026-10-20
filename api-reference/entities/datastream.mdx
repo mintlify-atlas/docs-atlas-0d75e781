@@ -1,0 +1,256 @@
+---
+title: "Datastream Entity API Reference"
+sidebarTitle: "Datastream"
+description: "API reference for the Datastream entity — links a Thing, Sensor, and ObservedProperty into a typed measurement channel with a unit of measurement."
+---
+
+The `Datastream` entity is the primary connector between the physical world and its measurements. It links a `Thing` (the device), a `Sensor` (the instrument), and an `ObservedProperty` (the phenomenon) into a single, semantically complete measurement channel. All `Observation` entities belong to a `Datastream`, which also carries aggregate metadata like the temporal coverage (`phenomenon_time`, `result_time`) and the geographic bounding box of all observations (`observed_area`).
+
+`Datastream` inherits from `Entity` and exposes strongly-validated property setters. Datetime fields accept both ISO 8601 strings and Python `datetime` objects, validated internally by `utils.check_datetime`. The `unit_of_measurement` field requires a `UnitOfMeasurement` instance from `frost_sta_client.model.ext.unitofmeasurement`.
+
+<Note>
+  The `observation_type` must be a valid OGC Observation type URI. The most common value is `'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement'` for scalar numeric results.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.datastream import Datastream
+
+Datastream(
+    name='',
+    description='',
+    observation_type='',
+    unit_of_measurement=None,
+    observed_area=None,
+    properties=None,
+    phenomenon_time=None,
+    result_time=None,
+    thing=None,
+    sensor=None,
+    observed_property=None,
+    observations=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the datastream (e.g., `'Indoor Temperature'`). Must be `str`; `None` is permitted and sets the value to `None`.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of what this datastream measures and how. Must be `str`; `None` is permitted.
+</ParamField>
+
+<ParamField path="observation_type" type="str" default='""'>
+  A URI identifying the type of observations in this stream. Must be `str`; `None` is permitted. Common values:
+
+  - `'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement'` — scalar numeric
+  - `'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_CategoryObservation'` — category/string
+  - `'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_TruthObservation'` — boolean
+</ParamField>
+
+<ParamField path="unit_of_measurement" type="UnitOfMeasurement | None" default="None">
+  A `UnitOfMeasurement` object describing the unit for observation results. Must be a `UnitOfMeasurement` instance or `None`; raises `ValueError` otherwise. Serialized as `unitOfMeasurement` in JSON.
+</ParamField>
+
+<ParamField path="observed_area" type="geojson.geometry.* | JSON-serializable | None" default="None">
+  The geographic bounding area of all observations in this datastream, server-maintained. Accepts any `geojson.geometry` class or a JSON-serializable value; raises `ValueError` if not JSON-serializable.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata for the datastream. Must be a `dict`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="phenomenon_time" type="str | datetime | None" default="None">
+  The temporal coverage of all observations as an ISO 8601 instant or interval (e.g., `'2024-01-01T00:00:00Z/2024-12-31T23:59:59Z'`). Accepts an ISO 8601 `str` or a Python `datetime` object. Server-managed aggregate; typically read-only.
+</ParamField>
+
+<ParamField path="result_time" type="str | datetime | None" default="None">
+  The interval during which results were produced. Same format rules as `phenomenon_time`.
+</ParamField>
+
+<ParamField path="thing" type="Thing | None" default="None">
+  The `Thing` this datastream belongs to. Must be a `Thing` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="sensor" type="Sensor | None" default="None">
+  The `Sensor` that produces observations for this datastream. Must be a `Sensor` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="observed_property" type="ObservedProperty | None" default="None">
+  The `ObservedProperty` being measured. Must be an `ObservedProperty` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="observations" type="list[Observation] | EntityList[Observation] | None" default="None">
+  Individual `Observation` records in this datastream. Accepts a plain list or `EntityList` of `Observation` objects; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str | None">
+  Name of the datastream. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str | None">
+  Description of the datastream. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="observation_type" type="str | None">
+  OGC observation type URI. Serialized as `observationType` in JSON.
+</ResponseField>
+
+<ResponseField name="unit_of_measurement" type="UnitOfMeasurement | None">
+  Unit descriptor for observation results. Serialized as `unitOfMeasurement` in JSON.
+</ResponseField>
+
+<ResponseField name="observed_area" type="geojson geometry | None">
+  Bounding area of all observations. Serialized as `observedArea` in JSON.
+</ResponseField>
+
+<ResponseField name="properties" type="dict | None">
+  Arbitrary extra metadata dictionary.
+</ResponseField>
+
+<ResponseField name="phenomenon_time" type="str | datetime | None">
+  Aggregate temporal span of observations. Serialized as `phenomenonTime`.
+</ResponseField>
+
+<ResponseField name="result_time" type="str | datetime | None">
+  Aggregate result-time span of observations. Serialized as `resultTime`.
+</ResponseField>
+
+<ResponseField name="thing" type="Thing | None">
+  The owning `Thing`. Serialized as nested `Thing` object in JSON.
+</ResponseField>
+
+<ResponseField name="sensor" type="Sensor | None">
+  The producing `Sensor`. Serialized as nested `Sensor` object in JSON.
+</ResponseField>
+
+<ResponseField name="observed_property" type="ObservedProperty | None">
+  The `ObservedProperty` being measured. Serialized as nested `ObservedProperty` in JSON.
+</ResponseField>
+
+<ResponseField name="observations" type="EntityList[Observation] | None">
+  Individual observations in this datastream, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+<ResponseField name="get_observations()" type="Query[Observation]">
+  Returns a `Query` for all `Observation` entities belonging to this `Datastream`. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+## UnitOfMeasurement
+
+The `UnitOfMeasurement` helper class (from `frost_sta_client.model.ext.unitofmeasurement`) carries three string fields:
+
+<Expandable title="UnitOfMeasurement fields">
+  <ResponseField name="name" type="str">
+    Human-readable unit name, e.g. `'Degree Celsius'`, `'Metre per second'`.
+  </ResponseField>
+  <ResponseField name="symbol" type="str">
+    The unit symbol, e.g. `'°C'`, `'m/s'`, `'%'`.
+  </ResponseField>
+  <ResponseField name="definition" type="str">
+    A URI referencing the formal definition — ideally from UCUM or QUDT, e.g. `'http://unitsofmeasure.org/ucum.html#cel'`.
+  </ResponseField>
+</Expandable>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a Datastream linking Thing, Sensor, and ObservedProperty
+from frost_sta_client.model.datastream import Datastream
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
+
+# Assume thing, sensor, and observed_property were fetched or just created
+ds = Datastream(
+    name='Ambient Air Temperature',
+    description='Air temperature measured at 2 m height above ground.',
+    observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
+    unit_of_measurement=UnitOfMeasurement(
+        name='Degree Celsius',
+        symbol='°C',
+        definition='http://unitsofmeasure.org/ucum.html#cel'
+    ),
+    thing=thing,
+    sensor=sensor,
+    observed_property=observed_property
+)
+```
+
+```python Create and persist via service
+import frost_sta_client
+from frost_sta_client.model.ext.unitofmeasurement import UnitOfMeasurement
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+thing = service.things().find(1)
+sensor = service.sensors().find(1)
+op = service.observed_properties().find(1)
+
+ds = frost_sta_client.Datastream(
+    name='Wind Speed',
+    description='Horizontal wind speed at 10 m above ground level.',
+    observation_type='http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
+    unit_of_measurement=UnitOfMeasurement(
+        name='Metre per second',
+        symbol='m/s',
+        definition='http://unitsofmeasure.org/ucum.html#m.s-1'
+    ),
+    thing=thing,
+    sensor=sensor,
+    observed_property=op,
+    properties={'height_m': 10, 'direction': 'horizontal'}
+)
+service.create(ds)
+print(ds.id)
+```
+
+```python Retrieve latest observations via navigation
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+ds = service.datastreams().find(5)
+
+observations = (
+    ds.get_observations()
+    .query()
+    .order_by('phenomenonTime desc')
+    .top(10)
+    .list()
+)
+for obs in observations.entities:
+    print(obs.phenomenon_time, obs.result)
+```
+</CodeGroup>
+
+<Tip>
+  Pass `Thing`, `Sensor`, and `ObservedProperty` by reference (with their `id` set) rather than embedding full objects when creating a `Datastream`. This reduces payload size and avoids accidentally creating duplicate entities on the server.
+</Tip>
+
+<Warning>
+  Assigning a non-`UnitOfMeasurement` value (e.g., a raw `dict`) to `unit_of_measurement` raises a `ValueError`. Always construct a `UnitOfMeasurement` instance before assigning.
+</Warning>

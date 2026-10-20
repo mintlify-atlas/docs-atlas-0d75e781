@@ -1,0 +1,180 @@
+---
+title: "Handle Pagination and Large Entity Lists"
+sidebarTitle: "Pagination"
+description: "EntityList auto-fetches paginated results. Iterate across pages transparently, use top/skip for manual offset control, and track progress with callbacks."
+---
+
+FROST Server paginates large result sets by returning a bounded first page and including an `@iot.nextLink` URL in the response body. The FROST Python Client handles this transparently through the `EntityList` class: its `__iter__` / `__next__` implementation automatically fetches subsequent pages as you iterate, so a simple `for` loop works correctly across millions of entities without any extra code.
+
+## Transparent auto-pagination
+
+Iterating directly over the `EntityList` returned by `.list()` follows every `@iot.nextLink` automatically. When the current page is exhausted the client fetches the next one, appends its entities, and continues without raising `StopIteration`.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+things_list = service.things().query().list()
+
+# All Things — across every page — without manual handling
+for thing in things_list:
+    print(thing.name)
+```
+
+Each page is fetched lazily: if you `break` out of the loop early, the client stops making additional requests.
+
+---
+
+## Iterating the current page only
+
+When you only need the entities that arrived in the first response, iterate over `entity_list.entities` (a plain Python `list`) instead of the `EntityList` itself.
+
+```python
+things_list = service.things().query().top(20).list()
+
+# Only the 20 entities returned in this single response
+for thing in things_list.entities:
+    print(thing.name)
+```
+
+---
+
+## Controlling page size with top()
+
+`top(num)` sets the `$top` OData query option, which tells the server how many entities to include per page. Larger values reduce the number of round-trips; smaller values reduce memory pressure per request.
+
+```python
+# Fetch 100 entities per page
+for thing in service.things().query().top(100).list():
+    print(thing.name)
+```
+
+---
+
+## Manual offset pagination with skip()
+
+`skip(num)` sets `$skip`, allowing you to jump to a specific offset within the collection. Combined with `top()`, this gives you full control over page boundaries.
+
+```python
+# Page 1 (items 0–99)
+page1 = service.things().query().top(100).skip(0).list()
+
+# Page 2 (items 100–199)
+page2 = service.things().query().top(100).skip(100).list()
+
+# Page 3 (items 200–299)
+page3 = service.things().query().top(100).skip(200).list()
+```
+
+<Note>
+  Manual `skip()` pagination can drift if the collection changes between
+  requests (inserts or deletes). For stable traversal of the full collection,
+  rely on the auto-pagination iterator.
+</Note>
+
+---
+
+## Total count with count()
+
+Calling `.count()` on a query adds `$count=true` to the request. After `.list()` the server-reported total — regardless of page size — is available on `entity_list.count`.
+
+```python
+things_list = service.things().query().count().top(50).list()
+
+print(f"Total Things on server : {things_list.count}")
+print(f"Loaded in this page    : {len(things_list.entities)}")
+```
+
+---
+
+## next_link attribute
+
+`entity_list.next_link` holds the URL provided by the server for the next page. It is `None` when the current page is the last one (or when the server does not paginate).
+
+```python
+things_list = service.things().query().top(5).list()
+
+if things_list.next_link:
+    print(f"More results available at: {things_list.next_link}")
+else:
+    print("All entities loaded in this response")
+```
+
+---
+
+## Progress callbacks
+
+For long-running iterations you can pass a `callback` function and a `step_size` integer to `.list()`. During the `for` loop the callback is invoked every `step_size` items with the current iteration index as its only argument.
+
+```python
+def on_progress(idx):
+    print(f"Loaded {idx} entities so far…")
+
+things = (
+    service.things()
+    .query()
+    .list(callback=on_progress, step_size=50)
+)
+
+for thing in things:
+    print(thing.name)
+    # on_progress is called at indices 0, 50, 100, 150, …
+```
+
+<Note>
+  The callback fires **only inside a `for` loop**. Accessing `things.entities`
+  directly does not trigger it because the `__next__` method (where the check
+  lives) is never called.
+</Note>
+
+### Callback with a counter-based progress bar
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+total_processed = 0
+
+def report_progress(idx):
+    print(f"[progress] {idx} entities iterated", flush=True)
+
+obs_list = (
+    service.observations()
+    .query()
+    .count()
+    .list(callback=report_progress, step_size=100)
+)
+
+print(f"Total on server: {obs_list.count}")
+
+for obs in obs_list:
+    total_processed += 1
+
+print(f"Finished — processed {total_processed} observations")
+```
+
+---
+
+## Summary of pagination-related API
+
+| Method / Attribute | Where | Description |
+|---|---|---|
+| `.top(n)` | `Query` | Set `$top` — max entities per page |
+| `.skip(n)` | `Query` | Set `$skip` — offset from collection start |
+| `.count()` | `Query` | Request `@iot.count` total in response |
+| `.list(callback, step_size)` | `Query` | Execute query; attach progress callback |
+| `entity_list.count` | `EntityList` | Total entity count (set only when `.count()` used) |
+| `entity_list.next_link` | `EntityList` | URL for next page, or `None` |
+| `entity_list.entities` | `EntityList` | Current-page entities list (no auto-fetch) |
+| `for e in entity_list` | `EntityList` | Auto-fetches all subsequent pages |
+
+<CardGroup cols={2}>
+  <Card title="Querying" icon="magnifying-glass" href="/guides/querying">
+    Full reference for filter, select, expand, and orderby
+  </Card>
+  <Card title="Related Entities" icon="diagram-project" href="/guides/related-entities">
+    Scope paginated queries to a parent entity
+  </Card>
+</CardGroup>

@@ -1,0 +1,212 @@
+---
+title: "Batch Observations with DataArrays"
+sidebarTitle: "Data Arrays"
+description: "Use the SensorThings DataArray extension to submit multiple Observations in one HTTP POST, cutting network overhead when ingesting large sensor datasets."
+---
+
+The SensorThings API DataArray extension lets you pack many `Observation` values into a single HTTP `POST`, dramatically reducing the number of round-trips when ingesting time-series data. Instead of sending one request per observation, you build a `DataArrayValue` that defines a schema (the *components*) and a packed array of rows matching that schema, then wrap it in a `DataArrayDocument` and POST the whole document in one call.
+
+## Core classes
+
+<CardGroup cols={2}>
+  <Card title="DataArrayValue" icon="table">
+    Holds the component schema and the packed data rows for one Datastream.
+  </Card>
+  <Card title="DataArrayDocument" icon="file">
+    Wraps one or more `DataArrayValue` objects into the envelope sent to the server.
+  </Card>
+</CardGroup>
+
+Both classes are accessible from the top-level `frost_sta_client` namespace:
+
+```python
+import frost_sta_client as fsc
+
+dav = fsc.model.ext.data_array_value.DataArrayValue()
+dad = fsc.model.ext.data_array_document.DataArrayDocument()
+```
+
+---
+
+## Step-by-step walkthrough
+
+<Steps>
+
+### Connect to the service and fetch required entities
+
+You need a live `Datastream` object (to tell the server which Datastream the observations belong to) and, if you are recording a feature of interest, a live `FeatureOfInterest` object.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+datastream = service.datastreams().find(1)
+foi = service.features_of_interest().find(1)
+```
+
+### Create a DataArrayValue and set its components
+
+Instantiate a `DataArrayValue` and set its `components` property using members of the inner `DataArrayValue.Property` enum. The components define the column schema of the data array.
+
+```python
+dav = fsc.model.ext.data_array_value.DataArrayValue()
+
+# Define the schema — must be set BEFORE adding any observations
+components = {
+    dav.Property.PHENOMENON_TIME,
+    dav.Property.RESULT,
+    dav.Property.FEATURE_OF_INTEREST,
+}
+dav.components = components
+
+# Attach the Datastream
+dav.datastream = datastream
+```
+
+<Warning>
+  Setting `components` after you have already called `add_observation()` raises
+  a `ValueError`. Always configure components first.
+</Warning>
+
+### Available `Property` enum members
+
+| Enum member | OData / JSON key |
+|---|---|
+| `Property.ID` | `id` |
+| `Property.PHENOMENON_TIME` | `phenomenonTime` |
+| `Property.RESULT` | `result` |
+| `Property.RESULT_TIME` | `resultTime` |
+| `Property.RESULT_QUALITY` | `resultQuality` |
+| `Property.VALID_TIME` | `validTime` |
+| `Property.PARAMETERS` | `parameters` |
+| `Property.FEATURE_OF_INTEREST` | `FeatureOfInterest/id` |
+
+### Build Observation objects and add them
+
+Construct `fsc.Observation` objects containing values for every component you declared in the previous step, then call `dav.add_observation()` for each one.
+
+```python
+obs1 = fsc.Observation(
+    result=3,
+    phenomenon_time="2022-12-19T10:00:00Z",
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+
+obs2 = fsc.Observation(
+    result=5,
+    phenomenon_time="2022-12-19T10:00:00Z/2022-12-19T11:00:00Z",  # time interval
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+
+dav.add_observation(obs1)
+dav.add_observation(obs2)
+```
+
+### Wrap in a DataArrayDocument and submit
+
+Create a `DataArrayDocument`, add the `DataArrayValue` to it, and call `service.observations().create(dad)`. The client sends a single `POST /CreateObservations` request and returns a list of the new observation URLs/ids.
+
+```python
+dad = fsc.model.ext.data_array_document.DataArrayDocument()
+dad.add_data_array_value(dav)
+
+result_list = service.observations().create(dad)
+print(result_list)  # list of Location URLs for the created observations
+```
+
+</Steps>
+
+---
+
+## Complete example
+
+The snippet below is the full working example from the FROST Python Client README, reproduced here for convenience.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+# Fetch the Datastream and FeatureOfInterest we will reference
+datastream = service.datastreams().find(1)
+foi = service.features_of_interest().find(1)
+
+# --- DataArrayValue setup ---
+dav = fsc.model.ext.data_array_value.DataArrayValue()
+
+# Set components BEFORE adding observations
+components = {
+    dav.Property.PHENOMENON_TIME,
+    dav.Property.RESULT,
+    dav.Property.FEATURE_OF_INTEREST,
+}
+dav.components = components
+dav.datastream = datastream
+
+# --- Build Observations ---
+obs1 = fsc.Observation(
+    result=3,
+    phenomenon_time="2022-12-19T10:00:00Z",
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+obs2 = fsc.Observation(
+    result=5,
+    phenomenon_time="2022-12-19T10:00:00Z/2022-12-19T11:00:00Z",
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+
+dav.add_observation(obs1)
+dav.add_observation(obs2)
+
+# --- Wrap and submit ---
+dad = fsc.model.ext.data_array_document.DataArrayDocument()
+dad.add_data_array_value(dav)
+
+result_list = service.observations().create(dad)
+print(f"Created {len(result_list)} observations")
+```
+
+---
+
+## Multiple Datastreams in one document
+
+A single `DataArrayDocument` can hold multiple `DataArrayValue` objects — one per Datastream — allowing you to batch observations across different Datastreams in one HTTP call.
+
+```python
+dav_temperature = fsc.model.ext.data_array_value.DataArrayValue()
+dav_temperature.components = {dav_temperature.Property.PHENOMENON_TIME, dav_temperature.Property.RESULT}
+dav_temperature.datastream = service.datastreams().find(1)
+
+dav_humidity = fsc.model.ext.data_array_value.DataArrayValue()
+dav_humidity.components = {dav_humidity.Property.PHENOMENON_TIME, dav_humidity.Property.RESULT}
+dav_humidity.datastream = service.datastreams().find(2)
+
+# Add observations to each DataArrayValue independently
+dav_temperature.add_observation(fsc.Observation(result=21.5, phenomenon_time="2024-01-01T12:00:00Z"))
+dav_humidity.add_observation(fsc.Observation(result=65.0, phenomenon_time="2024-01-01T12:00:00Z"))
+
+dad = fsc.model.ext.data_array_document.DataArrayDocument()
+dad.add_data_array_value(dav_temperature)
+dad.add_data_array_value(dav_humidity)
+
+result_list = service.observations().create(dad)
+```
+
+<Tip>
+  For large ingestion jobs, combine DataArrays with the pagination guide's
+  progress-callback pattern to track throughput as you submit successive batches.
+</Tip>
+
+<CardGroup cols={2}>
+  <Card title="CRUD Operations" icon="pencil" href="/guides/crud-operations">
+    Create single entities with service.create()
+  </Card>
+  <Card title="Pagination" icon="arrow-right" href="/guides/pagination">
+    Track progress when iterating large result sets
+  </Card>
+</CardGroup>

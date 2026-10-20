@@ -1,0 +1,181 @@
+---
+title: "FeatureOfInterest Entity API Reference"
+sidebarTitle: "FeatureOfInterest"
+description: "API reference for the FeatureOfInterest entity — the real-world subject of an Observation, typically a geographic location or area sampled by a sensor."
+---
+
+The `FeatureOfInterest` entity describes the real-world subject of an `Observation` — the thing, area, or process that was actually sampled. While a `Location` records where a `Thing` is deployed, a `FeatureOfInterest` represents what was observed at the time of measurement: a water body, an atmospheric column, a particular road segment, or a building's interior volume. The server often auto-generates a `FeatureOfInterest` from the associated `Thing`'s current `Location`, but custom ones can be created explicitly when the area of interest differs from the sensor's deployment point.
+
+`FeatureOfInterest` inherits from `Entity`, providing `id`, `self_link`, and `service`. The `feature` field accepts any JSON-serializable value (GeoJSON geometry dicts, strings, or arbitrary structures), while `encoding_type` identifies the representation format.
+
+<Note>
+  When a `Datastream` creates an `Observation` without an explicit `FeatureOfInterest`, the FROST server automatically creates one from the current `Location` of the associated `Thing`. You only need to create `FeatureOfInterest` entities manually when the observed feature is distinct from the sensor location.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.feature_of_interest import FeatureOfInterest
+
+FeatureOfInterest(
+    name='',
+    description='',
+    encoding_type='',
+    feature=None,
+    properties=None,
+    observations=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the feature of interest (e.g., `'Rhine River at Cologne'`). Must be `str`; `None` is permitted.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of the real-world feature being observed. Must be `str`; `None` is permitted.
+</ParamField>
+
+<ParamField path="encoding_type" type="str" default='""'>
+  The MIME type of the `feature` payload. Use `'application/geo+json'` for GeoJSON geometries. Must be `str`; `None` is permitted. Serialized as `encodingType`.
+</ParamField>
+
+<ParamField path="feature" type="JSON-serializable | None" default="None">
+  The geometric or descriptive representation of the feature. Accepts any JSON-serializable value — typically a GeoJSON geometry dict or a `geojson` object. Raises `TypeError` if the value is not JSON-serializable.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata for the feature. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed to the constructor.
+</ParamField>
+
+<ParamField path="observations" type="list[Observation] | EntityList[Observation] | None" default="None">
+  `Observation` entities that were made on this feature. Accepts a plain list or `EntityList`; raises `ValueError` if entries are not `Observation` instances.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str | None">
+  Name of the feature of interest. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str | None">
+  Description of the observed feature. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="encoding_type" type="str | None">
+  MIME type of the `feature` payload. Serialized as `encodingType` in JSON.
+</ResponseField>
+
+<ResponseField name="feature" type="JSON-serializable | None">
+  The geometric representation of the observed feature. Validated for JSON-serializability on set.
+</ResponseField>
+
+<ResponseField name="properties" type="dict | None">
+  Arbitrary extra metadata dictionary. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="observations" type="EntityList[Observation] | None">
+  Observations made on this feature, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+<ResponseField name="get_observations()" type="Query[Observation]">
+  Returns a `Query` for all `Observation` entities whose `FeatureOfInterest` is this entity. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a FeatureOfInterest with a GeoJSON Point
+import geojson
+from frost_sta_client.model.feature_of_interest import FeatureOfInterest
+
+foi = FeatureOfInterest(
+    name='Water Intake Point — Rhine km 685',
+    description='Point on the Rhine river bank used as the drinking water intake.',
+    encoding_type='application/geo+json',
+    feature=geojson.Point((6.9736, 50.9417)),
+    properties={'river': 'Rhine', 'km_marker': 685}
+)
+```
+
+```python Create via service and attach to Observations
+import geojson
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+foi = frost_sta_client.FeatureOfInterest(
+    name='Forest Canopy Plot B3',
+    description='A 20 m × 20 m forest plot used for microclimate monitoring.',
+    encoding_type='application/geo+json',
+    feature=geojson.Polygon([
+        [(8.430, 49.012), (8.430, 49.0122),
+         (8.4302, 49.0122), (8.4302, 49.012),
+         (8.430, 49.012)]
+    ])
+)
+service.create(foi)
+
+ds = service.datastreams().find(3)
+obs = frost_sta_client.Observation(
+    phenomenon_time='2024-07-01T08:00:00Z',
+    result=19.3,
+    datastream=ds,
+    feature_of_interest=foi
+)
+service.create(obs)
+```
+
+```python Use a raw GeoJSON dict as the feature
+from frost_sta_client.model.feature_of_interest import FeatureOfInterest
+
+foi = FeatureOfInterest(
+    name='Rooftop Monitoring Area',
+    description='Rectangular area of the building roof covered by radiation sensors.',
+    encoding_type='application/geo+json',
+    feature={
+        'type': 'Polygon',
+        'coordinates': [[[8.4300, 49.0140], [8.4310, 49.0140],
+                         [8.4310, 49.0145], [8.4300, 49.0145],
+                         [8.4300, 49.0140]]]
+    }
+)
+```
+
+```python Navigate to all Observations for a FeatureOfInterest
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+foi = service.features_of_interest().find(7)
+
+obs_list = foi.get_observations().query().top(50).list()
+for obs in obs_list.entities:
+    print(obs.phenomenon_time, obs.result)
+```
+</CodeGroup>
+
+<Tip>
+  For mobile or field deployments where the sensor location changes with each measurement (e.g., drone surveys or vehicle-mounted sensors), create a new `FeatureOfInterest` for each `Observation` to accurately record the position at the time of measurement.
+</Tip>

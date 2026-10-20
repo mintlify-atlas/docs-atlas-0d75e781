@@ -1,0 +1,266 @@
+---
+title: "DataArrayValue and DataArrayDocument API Reference"
+sidebarTitle: "Data Array"
+description: "API reference for DataArrayValue and DataArrayDocument — batch-create multiple Observations in one HTTP POST using the SensorThings DataArray extension."
+---
+
+The SensorThings DataArray extension allows you to submit many `Observation` records in a single HTTP POST request, dramatically reducing round-trip overhead when ingesting high-frequency sensor data. The `frost_sta_client` implementation splits this into two cooperating classes: `DataArrayValue` collects observations for a single `Datastream`, and `DataArrayDocument` wraps one or more `DataArrayValue` objects into the envelope that `service.observations().create()` sends to the server.
+
+---
+
+## DataArrayValue
+
+```text
+frost_sta_client.model.ext.data_array_value.DataArrayValue
+```
+
+`DataArrayValue` represents a batch of `Observation` records all belonging to the same `Datastream` (or `MultiDatastream`). Before adding any observations you must declare which observation fields you want to include by setting `.components`. The field selection is locked in after the first `add_observation()` call.
+
+### Constructor
+
+```python
+DataArrayValue()
+```
+
+Creates an empty `DataArrayValue`. No arguments are accepted. Set `.datastream` and `.components` before calling `add_observation()`.
+
+### Attributes
+
+<ResponseField name="datastream" type="Datastream">
+  The target `Datastream` entity for this batch. Its `id` is written into the serialized payload as `{"Datastream": {"@iot.id": <id>}}`. Either `datastream` or `multi_datastream` should be set, but not both.
+</ResponseField>
+
+<ResponseField name="multi_datastream" type="MultiDatastream">
+  Alternative to `datastream` for batches targeting a `MultiDatastream`. Set this instead of `datastream` when posting to a multi-datastream endpoint.
+</ResponseField>
+
+<ResponseField name="components" type="set of DataArrayValue.Property">
+  Controls which observation fields are included in the data array. Assigning a set of `DataArrayValue.Property` enum values builds the internal `VisibleProperties` object and populates the `_components` string list used in serialization. **Must be set before the first call to `add_observation()`** — assigning `components` when `data_array` already has entries raises `ValueError`.
+</ResponseField>
+
+<ResponseField name="data_array" type="list">
+  The raw list-of-lists that accumulates observation field values. Each inner list contains values in the order defined by `components`. Populated incrementally by `add_observation()`.
+</ResponseField>
+
+<ResponseField name="observations" type="list of Observation">
+  The original `Observation` objects added via `add_observation()`, preserved in insertion order. Exposed so that `DataArrayDocument.get_observations()` can reconstruct the full observation list.
+</ResponseField>
+
+### `DataArrayValue.Property` Enum
+
+`DataArrayValue.Property` is an `Enum` that represents the selectable fields of an `Observation`. Pass a set of these values to `.components`.
+
+| Member | `.to_string()` value | STA field |
+|---|---|---|
+| `Property.ID` | `"id"` | Observation `@iot.id` |
+| `Property.PHENOMENON_TIME` | `"phenomenonTime"` | Phenomenon time (ISO 8601 string or `datetime`) |
+| `Property.RESULT` | `"result"` | Measured result value |
+| `Property.RESULT_TIME` | `"resultTime"` | Time the result was generated |
+| `Property.RESULT_QUALITY` | `"resultQuality"` | Quality descriptor |
+| `Property.VALID_TIME` | `"validTime"` | Validity time interval |
+| `Property.PARAMETERS` | `"parameters"` | Key-value parameter map |
+| `Property.FEATURE_OF_INTEREST` | `"FeatureOfInterest/id"` | Feature of Interest `@iot.id` |
+
+<Note>
+  `FEATURE_OF_INTEREST` is the only member whose `.to_string()` output contains a slash (`"FeatureOfInterest/id"`). This matches the SensorThings API's navigation-property syntax for referencing the FoI by its identifier within a DataArray component list.
+</Note>
+
+### Methods
+
+#### `add_observation(o)`
+
+```python
+data_array_value.add_observation(o: Observation) → None
+```
+
+Appends one `Observation` to the batch. Extracts the field values specified by the current `components` setting (via the internal `VisibleProperties.from_observation()` helper) and appends the resulting list to `data_array`. Also appends `o` to `observations`.
+
+<ParamField path="o" type="Observation" required>
+  The `Observation` to add. Its fields are read according to the active `components` set. `phenomenon_time` is converted to an ISO 8601 string automatically if it is a `datetime.datetime` instance. If `FEATURE_OF_INTEREST` is in `components`, `o.feature_of_interest.id` is accessed, so the FoI must be pre-fetched or have its `id` set.
+</ParamField>
+
+<Warning>
+  You **must** set `components` before calling `add_observation()`. Calling `add_observation()` when `visible_properties` is `None` (i.e., `components` was never assigned) raises `AttributeError`. Changing `components` after observations have been added raises `ValueError`.
+</Warning>
+
+#### `__getstate__()`
+
+```python
+data_array_value.__getstate__() → dict
+```
+
+Serializes the object to a plain `dict` suitable for `jsonpickle` encoding. The output shape is:
+
+```python
+{
+    "Datastream": {"@iot.id": <datastream.id>},
+    "components": ["phenomenonTime", "result", ...],
+    "dataArray": [[...], [...], ...]
+}
+```
+
+### Usage Example
+
+<CodeGroup>
+```python Basic batch with two observations
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+dav = fsc.model.ext.data_array_value.DataArrayValue()
+
+datastream = service.datastreams().find(1)
+foi        = service.features_of_interest().find(1)
+
+# 1. Set components BEFORE adding observations
+dav.components = {
+    dav.Property.PHENOMENON_TIME,
+    dav.Property.RESULT,
+    dav.Property.FEATURE_OF_INTEREST,
+}
+dav.datastream = datastream
+
+# 2. Build and add observations
+obs1 = fsc.Observation(
+    result=3,
+    phenomenon_time="2024-06-01T08:00:00Z",
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+obs2 = fsc.Observation(
+    result=5,
+    phenomenon_time="2024-06-01T09:00:00Z",
+    datastream=datastream,
+    feature_of_interest=foi,
+)
+dav.add_observation(obs1)
+dav.add_observation(obs2)
+```
+
+```python Checking the serialized payload
+import json
+
+state = dav.__getstate__()
+print(json.dumps(state, indent=2))
+# {
+#   "Datastream": {"@iot.id": 1},
+#   "components": ["phenomenonTime", "result", "FeatureOfInterest/id"],
+#   "dataArray": [
+#     ["2024-06-01T08:00:00Z", 3, 1],
+#     ["2024-06-01T09:00:00Z", 5, 1]
+#   ]
+# }
+```
+</CodeGroup>
+
+---
+
+## DataArrayDocument
+
+```text
+frost_sta_client.model.ext.data_array_document.DataArrayDocument
+```
+
+`DataArrayDocument` is the top-level envelope for a DataArray POST request. It holds one or more `DataArrayValue` objects (one per target datastream) and is passed directly to `service.observations().create()`, which serializes it and submits a single HTTP POST to the server.
+
+### Constructor
+
+```python
+DataArrayDocument(count=-1, next_link=None, value=None)
+```
+
+<ParamField path="count" type="int" default="-1">
+  Total number of observations represented in the document. Defaults to `-1` (unset). Used for pagination metadata when the document is received from a server response rather than built for a POST request.
+</ParamField>
+
+<ParamField path="next_link" type="str or None" default="None">
+  Pagination link for DataArray response documents. `None` when building a document for submission.
+</ParamField>
+
+<ParamField path="value" type="list of DataArrayValue" default="[]">
+  Initial list of `DataArrayValue` objects. Defaults to an empty list. Assign via `add_data_array_value()` for the normal write path.
+</ParamField>
+
+### Attributes
+
+<ResponseField name="count" type="int or None">
+  Total observation count metadata. Must be `int` or `None`; other types raise `TypeError`.
+</ResponseField>
+
+<ResponseField name="next_link" type="str or None">
+  Pagination next-link URL, or `None`. Must be `str` or `None`; other types raise `TypeError`.
+</ResponseField>
+
+<ResponseField name="value" type="list of DataArrayValue">
+  The list of `DataArrayValue` batches that make up this document. Must be a `list` whose every element is a `DataArrayValue`; other types raise `TypeError`.
+</ResponseField>
+
+### Methods
+
+#### `add_data_array_value(dav)`
+
+```python
+data_array_document.add_data_array_value(dav: DataArrayValue) → None
+```
+
+Appends a `DataArrayValue` to the `.value` list. Use this method to assemble a multi-datastream document.
+
+<ParamField path="dav" type="DataArrayValue" required>
+  A fully populated `DataArrayValue` (datastream and observations already added).
+</ParamField>
+
+---
+
+#### `get_observations()`
+
+```python
+data_array_document.get_observations() → list[Observation]
+```
+
+Returns a flat list of all `Observation` objects stored across every `DataArrayValue` in `.value`. The observations are concatenated in the order the `DataArrayValue` objects were added.
+
+This is useful for reconciling the server's response (a list of created entity URLs) against the observations you submitted.
+
+### Full End-to-End Example
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+# --- Build first DataArrayValue (Datastream 1) ---
+dav1 = fsc.model.ext.data_array_value.DataArrayValue()
+ds1  = service.datastreams().find(1)
+foi  = service.features_of_interest().find(1)
+
+dav1.components = {
+    dav1.Property.PHENOMENON_TIME,
+    dav1.Property.RESULT,
+    dav1.Property.FEATURE_OF_INTEREST,
+}
+dav1.datastream = ds1
+dav1.add_observation(fsc.Observation(result=3, phenomenon_time="2024-06-01T08:00:00Z",
+                                      datastream=ds1, feature_of_interest=foi))
+dav1.add_observation(fsc.Observation(result=5, phenomenon_time="2024-06-01T09:00:00Z",
+                                      datastream=ds1, feature_of_interest=foi))
+
+# --- Build second DataArrayValue (Datastream 2) ---
+dav2 = fsc.model.ext.data_array_value.DataArrayValue()
+ds2  = service.datastreams().find(2)
+
+dav2.components = {dav2.Property.PHENOMENON_TIME, dav2.Property.RESULT}
+dav2.datastream = ds2
+dav2.add_observation(fsc.Observation(result=22.1, phenomenon_time="2024-06-01T08:00:00Z",
+                                      datastream=ds2))
+
+# --- Wrap in a DataArrayDocument and POST ---
+dad = fsc.model.ext.data_array_document.DataArrayDocument()
+dad.add_data_array_value(dav1)
+dad.add_data_array_value(dav2)
+
+result_list = service.observations().create(dad)
+```
+
+<Tip>
+  `service.observations().create(dad)` sends a single HTTP POST for all batches, regardless of how many `DataArrayValue` objects `dad` contains. This is far more efficient than creating each `Observation` individually when dealing with bulk ingestion.
+</Tip>

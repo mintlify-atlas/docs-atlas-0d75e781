@@ -1,0 +1,203 @@
+---
+title: "Location Entity API Reference"
+sidebarTitle: "Location"
+description: "API reference for the Location entity — a geographic position associated with a Thing. Supports GeoJSON Point, Polygon, and LineString geometries."
+---
+
+The `Location` entity records where a `Thing` is physically situated at a given moment in time. It carries a geographic geometry (typically a GeoJSON `Point`, `Polygon`, or `LineString`) alongside human-readable metadata. When a `Thing`'s current location changes, the server automatically archives the previous one as a `HistoricalLocation`, creating an auditable position history.
+
+`Location` inherits from `Entity`, gaining the `id`, `self_link`, and `service` base attributes. The `location` field accepts any GeoJSON geometry class from the `geojson` library, or any JSON-serializable value; anything that cannot be serialized to JSON raises a `ValueError`.
+
+<Note>
+  The `encoding_type` field is required by the SensorThings standard. For geographic coordinates, always set it to `'application/geo+json'`.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.location import Location
+
+Location(
+    name='',
+    description='',
+    encoding_type='',
+    properties=None,
+    location=None,
+    things=None,
+    historical_locations=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for this `Location`. Must be `str`; raises `ValueError` otherwise. Omitted from serialization when empty.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A free-text description of what or where this location represents. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="encoding_type" type="str" default='""'>
+  The MIME type that describes how the `location` geometry is encoded. For GeoJSON use `'application/geo+json'`. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  An arbitrary key-value mapping for extra metadata. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed to the constructor.
+</ParamField>
+
+<ParamField path="location" type="geojson.geometry.* | JSON-serializable | None" default="None">
+  The actual geographic geometry. Accepts any class from `geojson.geometry` (e.g. `geojson.Point`, `geojson.Polygon`, `geojson.LineString`) or any JSON-serializable value. Raises `ValueError` if the value cannot be serialized to JSON.
+</ParamField>
+
+<ParamField path="things" type="list[Thing] | EntityList[Thing] | None" default="None">
+  The `Thing` entities currently at this location. Accepts a plain list of `Thing` objects or an `EntityList`; raises `ValueError` if entries are not `Thing` instances.
+</ParamField>
+
+<ParamField path="historical_locations" type="list[HistoricalLocation] | EntityList[HistoricalLocation] | None" default="None">
+  `HistoricalLocation` entries that reference this `Location`. Managed by the server.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str">
+  Human-readable name of the location. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str">
+  Description of the location. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="encoding_type" type="str">
+  MIME encoding type of the geometry. Validated as `str` on set. Serialized as `encodingType` in JSON.
+</ResponseField>
+
+<ResponseField name="properties" type="dict | None">
+  Arbitrary extra metadata dictionary. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="location" type="geojson.geometry.* | any JSON-serializable | None">
+  The geometry stored for this location. GeoJSON geometry objects are stored directly; other JSON-serializable values are also accepted.
+</ResponseField>
+
+<ResponseField name="things" type="EntityList[Thing] | None">
+  Things currently at this location, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="historical_locations" type="EntityList[HistoricalLocation] | None">
+  HistoricalLocation records referencing this location, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+Navigation methods require the entity to be bound to a `service` instance.
+
+<ResponseField name="get_things()" type="Query[Thing]">
+  Returns a `Query` for all `Thing` entities currently associated with this `Location`.
+</ResponseField>
+
+<ResponseField name="get_historical_locations()" type="Query[HistoricalLocation]">
+  Returns a `Query` for all `HistoricalLocation` records that reference this `Location`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a Location with a GeoJSON Point
+import geojson
+from frost_sta_client.model.location import Location
+
+location = Location(
+    name='IOSB Karlsruhe',
+    description='Fraunhofer IOSB main campus',
+    encoding_type='application/geo+json',
+    location=geojson.Point((8.4326, 49.0144)),  # (longitude, latitude)
+    properties={'campus': 'main', 'country': 'DE'}
+)
+```
+
+```python Create a Location with a Polygon boundary
+import geojson
+from frost_sta_client.model.location import Location
+
+polygon_coords = [
+    (8.430, 49.012),
+    (8.435, 49.012),
+    (8.435, 49.017),
+    (8.430, 49.017),
+    (8.430, 49.012),  # close the ring
+]
+
+location = Location(
+    name='Sensor Deployment Zone A',
+    description='Coverage polygon for environmental sensors in district A',
+    encoding_type='application/geo+json',
+    location=geojson.Polygon([polygon_coords])
+)
+```
+
+```python Create Location and attach to a Thing via service
+import geojson
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+location = frost_sta_client.Location(
+    name='Roof Deck',
+    description='Weather station mounting point on building roof',
+    encoding_type='application/geo+json',
+    location=geojson.Point((-73.9857, 40.7484))
+)
+service.create(location)
+
+thing = frost_sta_client.Thing(
+    name='Rooftop Weather Station',
+    description='Primary outdoor met sensor',
+    locations=[location]
+)
+service.create(thing)
+```
+
+```python Use a raw GeoJSON dict (JSON-serializable)
+from frost_sta_client.model.location import Location
+
+raw_geom = {
+    'type': 'Point',
+    'coordinates': [8.4326, 49.0144]
+}
+
+location = Location(
+    name='Campus Entrance',
+    description='Main gate sensor position',
+    encoding_type='application/geo+json',
+    location=raw_geom
+)
+```
+</CodeGroup>
+
+<Tip>
+  The `geojson` library's coordinate order is `(longitude, latitude)` — the opposite of the common `(lat, lon)` convention. Double-check your coordinate order before persisting a `Location` to the server.
+</Tip>
+
+<Warning>
+  Passing a non-JSON-serializable object (such as a NumPy array or a custom class without a `__json__` method) to `location` raises a `ValueError`. Convert such values to plain Python dicts or lists first.
+</Warning>

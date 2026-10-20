@@ -1,0 +1,431 @@
+---
+title: "SensorThingsService API Reference"
+sidebarTitle: "SensorThingsService"
+description: "Complete API reference for SensorThingsService — the central class for connecting to FROST servers, accessing entity DAOs, and performing CRUD operations."
+---
+
+`SensorThingsService` is the root object of the FROST Python Client. Every interaction with a SensorThings API endpoint begins here: you construct one instance with the server URL (and optionally an auth handler or proxy map), then use it to obtain entity DAOs for querying, or call its CRUD methods directly to create, update, patch, or delete entities. Internally it drives all HTTP traffic through the `requests` library and uses `furl` for safe URL construction.
+
+## Class
+
+```
+frost_sta_client.service.sensorthingsservice.SensorThingsService
+```
+
+## Constructor
+
+```python
+SensorThingsService(url, auth_handler=None, proxies=None)
+```
+
+Creates a new service instance pointed at the given SensorThings API endpoint.
+
+<ParamField path="url" type="str" required>
+  The base URL of the SensorThings API endpoint (e.g. `"https://example.org/FROST-Server/v1.1"`). The value is parsed immediately by `furl`; a `ValueError` is raised if it cannot be parsed as a valid URL.
+</ParamField>
+
+<ParamField path="auth_handler" type="AuthHandler | None" default="None">
+  An [`AuthHandler`](/api-reference/auth-handler) instance carrying HTTP Basic Auth credentials. When provided, every outbound request will include the corresponding `Authorization` header. Pass `None` to make unauthenticated requests.
+</ParamField>
+
+<ParamField path="proxies" type="dict | None" default="None">
+  A proxy map passed verbatim to `requests.request()`. Use the standard `requests` format:
+  ```python
+  {"http": "http://proxy.example.com:8080", "https": "http://proxy.example.com:8080"}
+  ```
+  A `ValueError` is raised if the value is not a `dict`.
+</ParamField>
+
+### Quick-start example
+
+```python
+import frost_sta_client as fsc
+
+# Unauthenticated
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+# With HTTP Basic Auth
+auth = fsc.AuthHandler(username="admin", password="s3cr3t")
+service = fsc.SensorThingsService(
+    "https://example.org/FROST-Server/v1.1",
+    auth_handler=auth,
+)
+
+# With a corporate proxy
+service = fsc.SensorThingsService(
+    "https://example.org/FROST-Server/v1.1",
+    proxies={"http": "http://proxy.corp.com:3128", "https": "http://proxy.corp.com:3128"},
+)
+```
+
+---
+
+## Properties
+
+### `url`
+
+<ResponseField name="url" type="furl">
+  The parsed endpoint URL. The setter rejects `None` values and raises `ValueError` for unparseable strings; the getter always returns a `furl` object so you can read `.url` for the plain string form.
+</ResponseField>
+
+### `auth_handler`
+
+<ResponseField name="auth_handler" type="AuthHandler | None">
+  The authentication handler attached to this service. The setter enforces that the value is an `AuthHandler` instance or `None`; passing any other type raises `ValueError`.
+</ResponseField>
+
+### `proxies`
+
+<ResponseField name="proxies" type="dict | None">
+  The proxy dictionary forwarded to every `requests.request()` call. The setter enforces that the value is a `dict` or `None`.
+</ResponseField>
+
+---
+
+## DAO Accessor Methods
+
+Each method below constructs and returns a freshly-created DAO (Data Access Object) bound to this service instance. DAOs expose two primary methods:
+
+- **`.find(id)`** — fetch a single entity by its `@iot.id`
+- **`.query()`** — return a [`Query`](/api-reference/query) builder for filtered, paginated collection requests
+
+<Note>
+  DAOs are lightweight objects created on each call. There is no shared state between two calls to the same accessor method.
+</Note>
+
+### `things()`
+
+<ResponseField name="return" type="ThingDao">
+  Returns a `ThingDao` scoped to this service. Use it to fetch or query `Thing` entities.
+</ResponseField>
+
+```python
+thing = service.things().find(1)
+things = service.things().query().filter("name eq 'Weather Station'").list()
+```
+
+---
+
+### `datastreams()`
+
+<ResponseField name="return" type="DatastreamDao">
+  Returns a `DatastreamDao` for accessing `Datastream` entities.
+</ResponseField>
+
+```python
+datastream = service.datastreams().find(42)
+datastreams = service.datastreams().query().top(10).list()
+```
+
+---
+
+### `observations()`
+
+<ResponseField name="return" type="ObservationDao">
+  Returns an `ObservationDao` for accessing `Observation` entities.
+</ResponseField>
+
+```python
+observations = (
+    service.observations()
+    .query()
+    .filter("result gt 20")
+    .orderby("phenomenonTime")
+    .list()
+)
+```
+
+---
+
+### `sensors()`
+
+<ResponseField name="return" type="SensorDao">
+  Returns a `SensorDao` for accessing `Sensor` entities.
+</ResponseField>
+
+---
+
+### `locations()`
+
+<ResponseField name="return" type="LocationDao">
+  Returns a `LocationDao` for accessing `Location` entities.
+</ResponseField>
+
+---
+
+### `observed_properties()`
+
+<ResponseField name="return" type="ObservedPropertyDao">
+  Returns an `ObservedPropertyDao` for accessing `ObservedProperty` entities.
+</ResponseField>
+
+---
+
+### `features_of_interest()`
+
+<ResponseField name="return" type="FeaturesOfInterestDao">
+  Returns a `FeaturesOfInterestDao` for accessing `FeatureOfInterest` entities.
+</ResponseField>
+
+---
+
+### `historical_locations()`
+
+<ResponseField name="return" type="HistoricalLocationDao">
+  Returns a `HistoricalLocationDao` for accessing `HistoricalLocation` entities.
+</ResponseField>
+
+---
+
+### `multi_datastreams()`
+
+<ResponseField name="return" type="MultiDatastreamDao">
+  Returns a `MultiDatastreamDao` for accessing `MultiDatastream` entities (OGC SensorThings API Part 2 — Tasking Core extension).
+</ResponseField>
+
+---
+
+### `actuators()`
+
+<ResponseField name="return" type="ActuatorDao">
+  Returns an `ActuatorDao` for accessing `Actuator` entities (Tasking Core extension).
+</ResponseField>
+
+---
+
+### `tasks()`
+
+<ResponseField name="return" type="TaskDao">
+  Returns a `TaskDao` for accessing `Task` entities (Tasking Core extension).
+</ResponseField>
+
+---
+
+### `tasking_capabilities()`
+
+<ResponseField name="return" type="TaskingCapabilityDao">
+  Returns a `TaskingCapabilityDao` for accessing `TaskingCapability` entities (Tasking Core extension).
+</ResponseField>
+
+---
+
+## CRUD Methods
+
+These convenience methods delegate to the DAO that corresponds to the runtime type of `entity`, so you never have to pick the right DAO manually.
+
+### `create(entity)`
+
+POSTs a new entity to the server. On success, the server-assigned `@iot.id` is extracted from the `Location` response header and written back to `entity.id`. The entity's `service` attribute is also set to this service instance.
+
+<ParamField path="entity" type="Entity" required>
+  Any SensorThings entity object (e.g. `Thing`, `Datastream`, `Observation`, …) that has not yet been persisted (i.e. `entity.id` is `None` or empty). The entity is serialised to JSON automatically.
+</ParamField>
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+thing = fsc.Thing(
+    name="My Sensor Node",
+    description="Outdoor temperature sensor on roof",
+    properties={"floor": "roof"},
+)
+service.create(thing)
+print(thing.id)  # assigned by the server, e.g. 7
+```
+
+---
+
+### `update(entity)`
+
+Sends a full PUT replacement for an existing entity. The entity **must** have `id` set; an `AttributeError` is raised otherwise.
+
+<ParamField path="entity" type="Entity" required>
+  A SensorThings entity with a valid `id`. All writable fields are replaced on the server with the values currently held in the object.
+</ParamField>
+
+```python
+thing = service.things().find(7)
+thing.name = "Updated Sensor Node"
+service.update(thing)
+```
+
+<Warning>
+  `update()` issues a full `PUT` replacement. Any fields not present in the serialised entity will be removed on the server side. Use `patch()` when you only want to change a subset of fields.
+</Warning>
+
+---
+
+### `patch(entity, patches)`
+
+Sends a `PATCH` request using the [JSON Patch](https://jsonpatch.com/) format (`application/json-patch+json`). Only the listed operations are applied; all other fields are untouched.
+
+<ParamField path="entity" type="Entity" required>
+  The target entity. Must have a valid `id`.
+</ParamField>
+
+<ParamField path="patches" type="jsonpatch.JsonPatch | list[dict]" required>
+  Either a `jsonpatch.JsonPatch` object or a plain list of operation dictionaries. Each dict must follow the JSON Patch spec, e.g.:
+  ```python
+  [{"op": "replace", "path": "/name", "value": "New Name"}]
+  ```
+  A `ValueError` is raised if `patches` is `None` or has the wrong type.
+</ParamField>
+
+<Tabs>
+  <Tab title="Using a list of dicts">
+    ```python
+    patches = [{"op": "replace", "path": "/name", "value": "Patched Name"}]
+    service.patch(thing, patches)
+    ```
+  </Tab>
+  <Tab title="Using jsonpatch.JsonPatch">
+    ```python
+    import jsonpatch
+
+    patch = jsonpatch.JsonPatch([
+        {"op": "replace", "path": "/name", "value": "Patched Name"},
+        {"op": "replace", "path": "/description", "value": "Updated description"},
+    ])
+    service.patch(thing, patch)
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+### `delete(entity)`
+
+Sends a `DELETE` request for the given entity using its `id`.
+
+<ParamField path="entity" type="Entity" required>
+  The entity to remove from the server. Must have a valid `id`.
+</ParamField>
+
+```python
+thing = service.things().find(7)
+service.delete(thing)
+```
+
+---
+
+## Internal Methods
+
+These methods are used internally by DAOs and the `Query` class. You typically do not call them directly, but understanding them can help when debugging or extending the client.
+
+### `execute(method, url, **kwargs)`
+
+The single HTTP gateway for all outbound requests. Calls `requests.request(method, url, ...)`, injects proxy and auth settings, and calls `response.raise_for_status()` — re-raising as `requests.exceptions.HTTPError` on 4xx/5xx responses.
+
+<ParamField path="method" type="str" required>
+  HTTP verb string: `'get'`, `'post'`, `'put'`, `'patch'`, or `'delete'`.
+</ParamField>
+
+<ParamField path="url" type="str | furl" required>
+  Fully-qualified URL of the resource.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded verbatim to `requests.request()` (e.g. `json=`, `headers=`).
+</ParamField>
+
+<ResponseField name="return" type="requests.Response">
+  The raw `requests.Response` object on success.
+</ResponseField>
+
+---
+
+### `get_path(parent, relation)`
+
+Builds a relative STA path segment. When `parent` is `None` the result is just `relation`; otherwise it returns `EntityType(id)/relation` with proper string-ID quoting.
+
+<ParamField path="parent" type="Entity | None" required>
+  A parent entity (e.g. a `Thing`) or `None` for top-level collections.
+</ParamField>
+
+<ParamField path="relation" type="str" required>
+  The plural entity-type name of the child collection, e.g. `"Datastreams"`.
+</ParamField>
+
+<ResponseField name="return" type="str">
+  A relative path string such as `"Things(5)/Datastreams"`.
+</ResponseField>
+
+---
+
+### `get_full_path(parent, relation)`
+
+Prepends the service base URL to the result of `get_path()`, ensuring exactly one `/` separator regardless of whether the base URL already ends with one.
+
+<ParamField path="parent" type="Entity | None" required>
+  Parent entity or `None`.
+</ParamField>
+
+<ParamField path="relation" type="str" required>
+  The plural entity-type name of the target collection.
+</ParamField>
+
+<ResponseField name="return" type="furl">
+  A `furl` object representing the absolute URL of the collection.
+</ResponseField>
+
+---
+
+## Extended Examples
+
+<CodeGroup>
+
+```python Connect and list Things
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+things = service.things().query().top(5).list()
+for thing in things:
+    print(thing.id, thing.name)
+```
+
+```python Full CRUD lifecycle
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+# Create
+thing = fsc.Thing(name="Roof Node", description="Rooftop sensor")
+service.create(thing)
+print("Created with id:", thing.id)
+
+# Read
+fetched = service.things().find(thing.id)
+print("Fetched:", fetched.name)
+
+# Update (full replacement)
+fetched.description = "Updated rooftop sensor"
+service.update(fetched)
+
+# Patch (partial update)
+service.patch(fetched, [{"op": "replace", "path": "/name", "value": "Roof Node v2"}])
+
+# Delete
+service.delete(fetched)
+```
+
+```python Navigate related entities
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService("https://example.org/FROST-Server/v1.1")
+
+# Find a Thing's Datastreams via expand
+things = (
+    service.things()
+    .query()
+    .expand("Datastreams")
+    .filter("name eq 'Weather Station'")
+    .list()
+)
+for thing in things:
+    print(thing.name, "->", thing.datastreams)
+```
+
+</CodeGroup>

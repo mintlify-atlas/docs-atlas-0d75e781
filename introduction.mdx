@@ -1,0 +1,179 @@
+---
+title: "FROST Python Client: SensorThings API SDK for Python"
+sidebarTitle: "Introduction"
+description: "Learn what FROST Python Client is, how it maps to the OGC SensorThings API standard, and what it enables you to build with IoT sensor data."
+---
+
+The FROST Python Client (`frost_sta_client`) is an open-source Python library developed by Fraunhofer IOSB that makes it straightforward to interact with any [OGC SensorThings API](https://github.com/opengeospatial/sensorthings)-compliant server, including the reference implementation [FROST-Server](https://github.com/FraunhoferIOSB/FROST-Server). It provides a clean Pythonic API for creating, reading, updating, and deleting sensor data entities, building complex server-side queries, iterating through paginated result sets, and using advanced features such as DataArrays, MultiDatastreams, and the Tasking extension — without having to hand-craft HTTP requests or parse raw JSON responses yourself.
+
+## The OGC SensorThings API Standard
+
+The [OGC SensorThings API](https://www.ogc.org/standards/sensorthings) is an open standard published by the Open Geospatial Consortium (OGC) that defines a RESTful interface for connecting IoT devices, sensor data, and applications over the web. It organises sensor data around a set of well-defined entity types and their relationships:
+
+<CardGroup cols={2}>
+  <Card title="Thing" icon="microchip">
+    The object of interest being instrumented — a device, station, or anything that has one or more sensors attached to it.
+  </Card>
+  <Card title="Location" icon="location-dot">
+    The geospatial position (GeoJSON) associated with a Thing, forming a time-stamped HistoricalLocation log automatically.
+  </Card>
+  <Card title="Sensor" icon="satellite-dish">
+    The instrument that produces observations, described by metadata such as encoding type and sensor model documentation.
+  </Card>
+  <Card title="ObservedProperty" icon="chart-line">
+    The physical phenomenon being measured, identified by a URI definition (e.g. temperature, humidity, air quality index).
+  </Card>
+  <Card title="Datastream" icon="wave-square">
+    A collection of Observations grouped by a single Thing–Sensor–ObservedProperty combination and a unit of measurement.
+  </Card>
+  <Card title="Observation" icon="eye">
+    A single timestamped measurement result produced by a Sensor and associated with a Datastream and FeatureOfInterest.
+  </Card>
+  <Card title="FeatureOfInterest" icon="map-pin">
+    The spatial feature that an Observation acts upon — often the location of the sensor at observation time.
+  </Card>
+  <Card title="TaskingCapability / Task" icon="list-check">
+    Tasking extension entities that allow sending commands back to actuators connected to a Thing.
+  </Card>
+</CardGroup>
+
+The SensorThings API v1.0 and v1.1 standards are both supported by FROST-Server, and `frost_sta_client` can target either version by changing the URL path (`/v1.0` or `/v1.1`).
+
+## Key Capabilities
+
+`frost_sta_client` covers the full surface area of the SensorThings API standard and several of its extensions.
+
+### Full CRUD Operations
+
+Every SensorThings entity type — Things, Locations, Sensors, ObservedProperties, Datastreams, Observations, FeaturesOfInterest, HistoricalLocations, Actuators, TaskingCapabilities, and Tasks — supports create, read (find / query), update (PUT), patch (JSON Patch), and delete via a consistent, entity-aware interface.
+
+### Expressive Query Builder
+
+The `Query` class provides a fluent chainable interface for composing OData query options directly in Python:
+
+| Method | OData parameter | Purpose |
+|--------|----------------|---------|
+| `.filter(statement)` | `$filter` | Server-side filter expression |
+| `.select(*fields)` | `$select` | Limit returned properties |
+| `.expand(expansion)` | `$expand` | Inline related entities |
+| `.top(n)` | `$top` | Maximum page size |
+| `.skip(n)` | `$skip` | Result offset |
+| `.orderby(field, order)` | `$orderby` | Sort order |
+| `.count()` | `$count` | Include total count |
+
+### Transparent Pagination
+
+When a server response is split across multiple pages, the `EntityList` iterator automatically fetches subsequent pages on demand. Iterating a large result set feels identical to iterating a plain Python list — no manual `@iot.nextLink` handling required. An optional `callback` and `step_size` let you track loading progress in long-running jobs.
+
+### DataArray Bulk Observations
+
+The `DataArrayValue` and `DataArrayDocument` classes implement the SensorThings DataArray extension, allowing you to POST hundreds or thousands of Observations in a single HTTP request, reducing round-trip latency and server load significantly.
+
+### MultiDatastreams
+
+The `MultiDatastream` entity and its dedicated DAO let you group observations that observe multiple phenomena simultaneously (e.g. a weather station that records temperature, pressure, and humidity in a single measurement event).
+
+### Tasking Extension
+
+The Tasking extension entities (`Actuator`, `TaskingCapability`, `Task`) are first-class citizens in `frost_sta_client`, letting you send commands back to IoT devices through the same service interface used for reading sensor data.
+
+## Core Architecture
+
+Understanding the four-layer design of `frost_sta_client` will help you navigate the library and extend it where needed.
+
+```
+┌─────────────────────────────────────────────┐
+│            Your Application Code            │
+└────────────────────┬────────────────────────┘
+                     │ calls
+┌────────────────────▼────────────────────────┐
+│          SensorThingsService                │  ← single entry point, holds URL + auth
+└──────┬──────────────────────┬───────────────┘
+       │ returns              │ returns
+┌──────▼──────┐        ┌──────▼──────┐
+│  Entity DAO │        │    Query    │  ← fluent query builder
+│  (per type) │        │   Builder   │
+└──────┬──────┘        └──────┬──────┘
+       │ create/patch/…       │ list()
+┌──────▼──────────────────────▼──────────────┐
+│              Model Entities                 │  ← Thing, Sensor, Observation, …
+│         (Python dataclasses-style)          │
+└─────────────────────────────────────────────┘
+```
+
+### `SensorThingsService`
+
+`SensorThingsService` is the single entry point for all interactions. Construct it once with a server URL and an optional `AuthHandler`, then call its entity-accessor methods (`.things()`, `.sensors()`, `.observations()`, …) to obtain the matching DAO.
+
+```python
+import frost_sta_client as fsc
+
+service = fsc.SensorThingsService(
+    "http://localhost:8080/FROST-Server/v1.1",
+    auth_handler=fsc.AuthHandler(username="admin", password="admin")
+)
+```
+
+### Data Access Objects (DAOs)
+
+Each entity type has a dedicated DAO class (e.g. `ThingDao`, `DatastreamDao`) that inherits from `BaseDao`. Every DAO exposes `create`, `update`, `patch`, `delete`, `find`, and `query`. You normally never instantiate a DAO directly — `SensorThingsService` does it for you:
+
+```python
+dao = service.things()        # → ThingDao
+thing = dao.find(1)           # GET /Things(1)
+dao.update(thing)             # PUT /Things(1)
+dao.delete(thing)             # DELETE /Things(1)
+```
+
+### Model Entities
+
+All SensorThings entities are Python classes that live in `frost_sta_client.model`. They map 1-to-1 with the OGC standard entity types and are serialised to/from JSON automatically using `jsonpickle`. Entities carry their relationships as Python attributes (e.g. `thing.locations = [location]`), and deep object graphs are sent to the server in a single create call.
+
+### Query Builder
+
+Calling `.query()` on any DAO returns a `Query` instance. Methods are chainable and the query is not executed until `.list()` or `.find()` is called, keeping the interface lazy and composable:
+
+```python
+results = (
+    service.observations()
+    .query()
+    .filter("result gt 20")
+    .orderby("phenomenonTime", "DESC")
+    .top(100)
+    .expand("Datastream")
+    .list()
+)
+```
+
+## Dependencies
+
+`frost_sta_client` relies on the following Python packages, all installed automatically when you `pip install frost_sta_client`:
+
+| Package | Min version | Role |
+|---------|-------------|------|
+| `requests` | ≥ 2.26.0 | HTTP transport |
+| `furl` | ≥ 2.1.3 | URL construction and manipulation |
+| `geojson` | ≥ 2.5.0 | GeoJSON geometry objects for locations |
+| `jsonpickle` | ≥ 2.0.0 | JSON (de)serialisation of Python objects |
+| `demjson3` | ≥ 3.0.5 | High-precision float JSON backend (default) |
+| `jsonpatch` | any | JSON Patch support for partial updates |
+| `python-dateutil` | any | ISO 8601 date/time parsing |
+
+<Note>
+  By default the library registers `demjson3` as the preferred `jsonpickle` backend because it handles long-precision floats (common in sensor readings) more correctly than the standard `json` module. You can override this at any point with `jsonpickle.set_preferred_backend('json')`.
+</Note>
+
+## License
+
+`frost_sta_client` is released under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. This means you can use and embed the library in proprietary software as long as any modifications to the library itself are published under the same license. See the [LICENSE file](https://github.com/FraunhoferIOSB/FROST-Python-Client/blob/master/LICENSE) in the repository for full terms.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="quickstart">
+    Create your first SensorThings entities and post an Observation in under five minutes.
+  </Card>
+  <Card title="Installation" icon="download" href="installation">
+    Detailed installation options, dependency notes, and local FROST-Server setup.
+  </Card>
+</CardGroup>

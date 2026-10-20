@@ -1,0 +1,217 @@
+---
+title: "Thing Entity API Reference"
+sidebarTitle: "Thing"
+description: "API reference for the Thing entity — a physical or virtual device in the SensorThings model. Covers all properties, collections, and navigation methods."
+---
+
+The `Thing` entity is the central concept in the OGC SensorThings API. It represents any physical object, virtual object, or collection of objects that can be observed and measured — from weather stations and smart meters to IoT gateways and virtual sensors. Every `Datastream`, `Location`, and `TaskingCapability` ultimately traces back to a `Thing`.
+
+`Thing` inherits from `Entity`, gaining the `id`, `self_link`, and `service` base attributes. All collection-typed properties (`locations`, `datastreams`, etc.) accept either a plain Python `list` of the appropriate type or an `EntityList` wrapper, and are validated on assignment.
+
+<Note>
+  `properties` defaults to an empty dict `{}` rather than `None`. Assigning `None` to `properties` resets it to `None`, which is valid but means the field will be omitted during serialization.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.thing import Thing
+
+Thing(
+    name='',
+    description='',
+    properties=None,
+    locations=None,
+    historical_locations=None,
+    datastreams=None,
+    multi_datastreams=None,
+    tasking_capabilities=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name that identifies the `Thing`. Must be of type `str`; raises `ValueError` otherwise. Omitted from serialization when empty.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A free-text description of the `Thing`. Must be of type `str`; raises `ValueError` otherwise. Omitted from serialization when empty.
+</ParamField>
+
+<ParamField path="properties" type="dict" default="{}">
+  An arbitrary key-value mapping of extra properties for the `Thing`. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed to the constructor.
+</ParamField>
+
+<ParamField path="locations" type="list[Location] | EntityList[Location] | None" default="None">
+  The current geographic `Location` entities associated with this `Thing`. Accepts a plain list of `Location` objects or an `EntityList`; raises `ValueError` if the list contains non-`Location` items.
+</ParamField>
+
+<ParamField path="historical_locations" type="list[HistoricalLocation] | EntityList[HistoricalLocation] | None" default="None">
+  The automatically-generated `HistoricalLocation` records tracking prior positions. Read-only in practice; created by the server when a `Thing`'s `Location` changes.
+</ParamField>
+
+<ParamField path="datastreams" type="list[Datastream] | EntityList[Datastream] | None" default="None">
+  The `Datastream` entities owned by this `Thing`. Each `Datastream` links a `Thing` to a `Sensor` and `ObservedProperty`.
+</ParamField>
+
+<ParamField path="multi_datastreams" type="list[MultiDatastream] | EntityList[MultiDatastream] | None" default="None">
+  The `MultiDatastream` entities owned by this `Thing`. A `MultiDatastream` groups multiple `ObservedProperty` values into a single stream.
+</ParamField>
+
+<ParamField path="tasking_capabilities" type="list[TaskingCapability] | EntityList[TaskingCapability] | None" default="None">
+  The `TaskingCapability` entities associated with this `Thing`, from the SensorThings Tasking extension.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server. Accepts `int` or `str`; raises `ValueError` for any other type.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server. Defaults to `''`.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The `SensorThingsService` instance this entity is bound to. Required before calling any navigation method.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str">
+  The name of the `Thing`. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str">
+  The description of the `Thing`. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary extra metadata dictionary. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="locations" type="EntityList[Location] | None">
+  The current location(s) of the `Thing`, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="historical_locations" type="EntityList[HistoricalLocation] | None">
+  Past locations recorded by the server, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="datastreams" type="EntityList[Datastream] | None">
+  Datastreams owned by this `Thing`, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="multi_datastreams" type="EntityList[MultiDatastream] | None">
+  MultiDatastreams owned by this `Thing`, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="tasking_capabilities" type="EntityList[TaskingCapability] | None">
+  TaskingCapabilities associated with this `Thing`, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+Navigation methods return a query object scoped to this `Thing`'s related collection. The entity must be bound to a service (i.e., `self.service` must not be `None`) before calling these methods.
+
+<ResponseField name="get_datastreams()" type="Query[Datastream]">
+  Returns a `Query` for all `Datastream` entities belonging to this `Thing`. Use the returned query to filter, expand, or iterate results.
+</ResponseField>
+
+<ResponseField name="get_multi_datastreams()" type="Query[MultiDatastream]">
+  Returns a `Query` for all `MultiDatastream` entities belonging to this `Thing`.
+</ResponseField>
+
+<ResponseField name="get_locations()" type="Query[Location]">
+  Returns a `Query` for all current `Location` entities associated with this `Thing`.
+</ResponseField>
+
+<ResponseField name="get_historical_locations()" type="Query[HistoricalLocation]">
+  Returns a `Query` for all `HistoricalLocation` entities recorded for this `Thing`.
+</ResponseField>
+
+<ResponseField name="get_tasking_capabilities()" type="Query[TaskingCapability]">
+  Returns a `Query` for all `TaskingCapability` entities associated with this `Thing`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create a basic Thing
+from frost_sta_client.model.thing import Thing
+
+thing = Thing(
+    name='Indoor Air Quality Sensor',
+    description='Monitors temperature, humidity, and CO2 in Room 42.',
+    properties={
+        'room': '42',
+        'floor': 3,
+        'building': 'HQ-North'
+    }
+)
+print(thing.name)         # 'Indoor Air Quality Sensor'
+print(thing.properties)   # {'room': '42', 'floor': 3, 'building': 'HQ-North'}
+```
+
+```python Attach a Location
+import geojson
+from frost_sta_client.model.thing import Thing
+from frost_sta_client.model.location import Location
+
+location = Location(
+    name='Room 42',
+    description='Third-floor office room',
+    encoding_type='application/geo+json',
+    location=geojson.Point((-117.123, 54.123))
+)
+
+thing = Thing(
+    name='Indoor Air Quality Sensor',
+    description='Room 42 sensor node',
+    locations=[location]
+)
+```
+
+```python Create via service (POST to server)
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+thing = frost_sta_client.Thing(
+    name='Rooftop Weather Station',
+    description='Outdoor meteorological sensor array on Building A roof.',
+    properties={'serialNumber': 'WX-9000-A', 'vendor': 'WeatherCo'}
+)
+service.create(thing)
+print(thing.id)       # populated by server after creation
+print(thing.self_link)
+```
+
+```python Navigate to Datastreams
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+# Fetch an existing Thing by id
+thing = service.things().find(1)
+
+# Query all Datastreams for this Thing
+datastreams = thing.get_datastreams().query().list()
+for ds in datastreams.entities:
+    print(ds.name, ds.observation_type)
+```
+</CodeGroup>
+
+<Tip>
+  When creating a `Thing` with an attached `Location`, the server automatically creates a `HistoricalLocation` entry. You do not need to create `HistoricalLocation` objects manually.
+</Tip>
+
+<Warning>
+  Calling `get_datastreams()`, `get_locations()`, or any other navigation method on a `Thing` that is not bound to a `service` will raise an `AttributeError`. Ensure the `Thing` was fetched from, or created via, a `SensorThingsService` instance.
+</Warning>

@@ -1,0 +1,241 @@
+---
+title: "Observation Entity API Reference"
+sidebarTitle: "Observation"
+description: "API reference for the Observation entity — a single measurement tied to a Datastream. Documents phenomenon time, result types, and quality metadata."
+---
+
+The `Observation` entity is the leaf node of the SensorThings data model — it represents a single measurement or event captured at a specific point in time. Each `Observation` belongs to exactly one `Datastream` (or `MultiDatastream`), carries the actual measured `result`, and records three distinct time concepts: when the phenomenon occurred (`phenomenon_time`), when the result was produced (`result_time`), and the validity window of the result (`valid_time`).
+
+`Observation` inherits from `Entity`, providing `id`, `self_link`, and `service`. Datetime fields are routed through `utils.check_datetime`, which accepts ISO 8601 strings, Python `datetime` objects, or `None`. ISO 8601 intervals (two instants separated by `/`) are supported for `phenomenon_time` and `valid_time`. The `result` field accepts any JSON-serializable value — integers, floats, strings, lists, or dicts.
+
+<Note>
+  An `Observation` must reference either a `Datastream` **or** a `MultiDatastream`, not both. The server uses this reference to infer the expected result type and associate the measurement with the correct sensor channel.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.observation import Observation
+
+Observation(
+    phenomenon_time=None,
+    result=None,
+    result_time=None,
+    result_quality=None,
+    valid_time=None,
+    parameters=None,
+    datastream=None,
+    multi_datastream=None,
+    feature_of_interest=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="phenomenon_time" type="str | datetime | None" default="None">
+  The time the phenomenon was observed. Accepts an ISO 8601 instant (`'2024-06-15T12:00:00Z'`), an ISO 8601 interval (`'2024-06-15T12:00:00Z/2024-06-15T13:00:00Z'`), or a Python `datetime` object. Serialized as `phenomenonTime`.
+</ParamField>
+
+<ParamField path="result" type="JSON-serializable | None" default="None">
+  The observation's measured or computed value. Accepts any JSON-serializable type: `int`, `float`, `str`, `bool`, `list`, `dict`. Raises `TypeError` if the value cannot be serialized to JSON.
+</ParamField>
+
+<ParamField path="result_time" type="str | datetime | None" default="None">
+  The time the result was generated or computed. Accepts an ISO 8601 string or Python `datetime`. Serialized as `resultTime`.
+</ParamField>
+
+<ParamField path="result_quality" type="JSON-serializable | None" default="None">
+  Quality metadata for the result — for example a quality flag, confidence score, or DQ object. Accepts any JSON-serializable value. Raises `TypeError` if not JSON-serializable. Serialized as `resultQuality`.
+</ParamField>
+
+<ParamField path="valid_time" type="str | datetime | None" default="None">
+  The time interval during which the result is considered valid. Accepts an ISO 8601 interval string or `datetime`. Serialized as `validTime`.
+</ParamField>
+
+<ParamField path="parameters" type="dict | None" default="{}">
+  Environmental or instrument parameters that influenced this observation — e.g., calibration offsets, ambient conditions. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed to the constructor.
+</ParamField>
+
+<ParamField path="datastream" type="Datastream | None" default="None">
+  The `Datastream` this observation belongs to. Must be a `Datastream` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="multi_datastream" type="MultiDatastream | None" default="None">
+  The `MultiDatastream` this observation belongs to. Must be a `MultiDatastream` instance or `None`; raises `ValueError` otherwise. Mutually exclusive with `datastream` in practice.
+</ParamField>
+
+<ParamField path="feature_of_interest" type="FeatureOfInterest | None" default="None">
+  The `FeatureOfInterest` that was observed — typically the location or geographic feature at the time of observation. Must be a `FeatureOfInterest` instance or `None`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="phenomenon_time" type="str | datetime | None">
+  The observation time or interval. Serialized as `phenomenonTime`.
+</ResponseField>
+
+<ResponseField name="result" type="int | float | str | bool | list | dict | None">
+  The measured value. JSON-serializable; `None` means no result recorded.
+</ResponseField>
+
+<ResponseField name="result_time" type="str | datetime | None">
+  The result generation time. Serialized as `resultTime`.
+</ResponseField>
+
+<ResponseField name="result_quality" type="JSON-serializable | None">
+  Quality descriptor for the result. Serialized as `resultQuality`.
+</ResponseField>
+
+<ResponseField name="valid_time" type="str | datetime | None">
+  The validity window for the result. Serialized as `validTime`.
+</ResponseField>
+
+<ResponseField name="parameters" type="dict | None">
+  Instrument or environment parameters at observation time.
+</ResponseField>
+
+<ResponseField name="datastream" type="Datastream | None">
+  The owning `Datastream`.
+</ResponseField>
+
+<ResponseField name="multi_datastream" type="MultiDatastream | None">
+  The owning `MultiDatastream`.
+</ResponseField>
+
+<ResponseField name="feature_of_interest" type="FeatureOfInterest | None">
+  The `FeatureOfInterest` that was observed. Serialized as nested `FeatureOfInterest`.
+</ResponseField>
+
+## Datetime handling
+
+All three time fields (`phenomenon_time`, `result_time`, `valid_time`) are routed through `utils.check_datetime`:
+
+<Expandable title="Accepted datetime formats">
+  <ResponseField name="ISO 8601 instant" type="str">
+    `'2024-06-15T12:00:00Z'` or `'2024-06-15T12:00:00+02:00'`
+  </ResponseField>
+  <ResponseField name="ISO 8601 interval" type="str">
+    `'2024-06-15T12:00:00Z/2024-06-15T13:00:00Z'` — two instants separated by `/`
+  </ResponseField>
+  <ResponseField name="Python datetime" type="datetime.datetime">
+    A timezone-aware or naive `datetime` object. Serialized via `.isoformat()`.
+  </ResponseField>
+  <ResponseField name="None" type="None">
+    Field is omitted from serialization.
+  </ResponseField>
+</Expandable>
+
+The `phenomenon_time_as_str()` helper method always returns the `phenomenon_time` as a string (or `None`), regardless of whether it was stored as a `str` or `datetime`.
+
+## Usage examples
+
+<CodeGroup>
+```python Create an Observation linked to a Datastream
+from frost_sta_client.model.observation import Observation
+from frost_sta_client.model.datastream import Datastream
+
+# Reference an existing Datastream by id
+ds = Datastream(id=42)
+
+obs = Observation(
+    phenomenon_time='2024-06-15T09:30:00Z',
+    result=23.7,
+    result_time='2024-06-15T09:30:01Z',
+    datastream=ds
+)
+```
+
+```python Create and persist via service
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+ds = service.datastreams().find(5)
+
+obs = frost_sta_client.Observation(
+    phenomenon_time='2024-06-15T09:30:00Z',
+    result=21.4,
+    datastream=ds
+)
+service.create(obs)
+print(obs.id)
+```
+
+```python Observation with interval phenomenon_time
+from frost_sta_client.model.observation import Observation
+
+obs = Observation(
+    phenomenon_time='2024-06-15T09:00:00Z/2024-06-15T10:00:00Z',
+    result=18.9,  # average over the hour
+    result_quality={'flag': 1, 'confidence': 0.98},
+    parameters={'averaging_period_min': 60}
+)
+```
+
+```python Observation with FeatureOfInterest
+import geojson
+from frost_sta_client.model.observation import Observation
+from frost_sta_client.model.feature_of_interest import FeatureOfInterest
+
+foi = FeatureOfInterest(
+    name='Parking Lot Sensor Grid',
+    description='The asphalt surface area monitored by this sensor',
+    encoding_type='application/geo+json',
+    feature=geojson.Polygon([[(8.430, 49.012), (8.435, 49.012),
+                               (8.435, 49.017), (8.430, 49.017),
+                               (8.430, 49.012)]])
+)
+
+obs = Observation(
+    phenomenon_time='2024-06-15T14:00:00Z',
+    result=62.3,
+    feature_of_interest=foi
+)
+```
+
+```python Batch-create observations
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+ds = service.datastreams().find(5)
+
+readings = [
+    ('2024-06-15T10:00:00Z', 20.1),
+    ('2024-06-15T10:10:00Z', 20.4),
+    ('2024-06-15T10:20:00Z', 20.8),
+]
+for ts, val in readings:
+    obs = frost_sta_client.Observation(
+        phenomenon_time=ts,
+        result=val,
+        datastream=ds
+    )
+    service.create(obs)
+```
+</CodeGroup>
+
+<Tip>
+  When inserting many observations, consider using the FROST server's batch request capability via the `$batch` endpoint instead of individual `service.create()` calls. This significantly reduces HTTP overhead for high-frequency sensor data ingestion.
+</Tip>
+
+<Warning>
+  Setting `result` to a Python `datetime`, a NumPy scalar, or any other non-JSON-native type raises a `TypeError`. Convert such values to `float`, `int`, or `str` before assigning.
+</Warning>

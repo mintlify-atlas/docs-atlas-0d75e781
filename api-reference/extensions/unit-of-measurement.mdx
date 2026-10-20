@@ -1,0 +1,180 @@
+---
+title: "UnitOfMeasurement API Reference"
+sidebarTitle: "UnitOfMeasurement"
+description: "API reference for UnitOfMeasurement — a value object used in Datastream to specify the unit of measured values, including name, symbol, and definition URI."
+---
+
+`UnitOfMeasurement` is a lightweight value object that captures the three pieces of metadata the SensorThings API requires for every `Datastream`'s unit: a human-readable name, a concise symbol, and a definition URI that points to a canonical vocabulary entry. It has no behaviour of its own beyond serialization — it is constructed once, assigned to `Datastream.unit_of_measurement`, and then serialized as part of that entity's payload.
+
+## Class
+
+```text
+frost_sta_client.model.ext.unitofmeasurement.UnitOfMeasurement
+```
+
+## Constructor
+
+```python
+UnitOfMeasurement(name="", symbol="", definition="")
+```
+
+All three parameters are optional and default to an empty string. In practice you should always supply meaningful values because the FROST server validates that the unit is present on a `Datastream`.
+
+<ParamField path="name" type="str" default='""'>
+  Human-readable name of the unit, for example `"Degree Celsius"` or `"Kilometre per hour"`. Must be a `str` or `None`; other types raise `ValueError`.
+</ParamField>
+
+<ParamField path="symbol" type="str" default='""'>
+  Short symbolic representation, for example `"°C"` or `"km/h"`. Must be a `str` or `None`; other types raise `ValueError`.
+</ParamField>
+
+<ParamField path="definition" type="str" default='""'>
+  A URI pointing to the formal definition of the unit in a recognised vocabulary such as QUDT or UCUM, for example `"http://qudt.org/vocab/unit/DEG_C"`. Must be a `str` or `None`; other types raise `ValueError`.
+</ParamField>
+
+## Attributes
+
+<ResponseField name="name" type="str or None">
+  Human-readable unit name. Validates on assignment — raises `ValueError` if the value is not a `str` or `None`.
+</ResponseField>
+
+<ResponseField name="symbol" type="str or None">
+  Short symbolic abbreviation for the unit. Validates on assignment — raises `ValueError` if the value is not a `str` or `None`.
+</ResponseField>
+
+<ResponseField name="definition" type="str or None">
+  URI pointing to the formal unit definition. Validates on assignment — raises `ValueError` if the value is not a `str` or `None`.
+</ResponseField>
+
+## Methods
+
+### `__getstate__()`
+
+```python
+unit_of_measurement.__getstate__() → dict
+```
+
+Returns a plain `dict` representation used by `jsonpickle` during serialization. The keys match the SensorThings API field names expected by the server:
+
+```python
+{
+    "name":       "Degree Celsius",
+    "symbol":     "°C",
+    "definition": "http://qudt.org/vocab/unit/DEG_C"
+}
+```
+
+---
+
+### `__setstate__(state)`
+
+```python
+unit_of_measurement.__setstate__(state: dict) → None
+```
+
+Restores the object from a serialized `dict`. Called by `jsonpickle` during deserialization. Missing keys default to `None`.
+
+<ParamField path="state" type="dict" required>
+  A dictionary with optional keys `"name"`, `"symbol"`, and `"definition"`.
+</ParamField>
+
+---
+
+### `__eq__(other)`
+
+```python
+unit_of_measurement.__eq__(other) → bool
+```
+
+Returns `True` when `other` is a `UnitOfMeasurement` with identical `name`, `symbol`, and `definition` values. Returns `False` if `other` is `None`, a different type, or has any differing field.
+
+## Usage
+
+### Assigning to a Datastream
+
+`UnitOfMeasurement` is always used as the value of `Datastream.unit_of_measurement`. Create it inline when building a new datastream:
+
+```python
+import frost_sta_client as fsc
+
+uom = fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+    name="Degree Celsius",
+    symbol="°C",
+    definition="http://qudt.org/vocab/unit/DEG_C",
+)
+
+datastream = fsc.Datastream(
+    name="Air Temperature",
+    description="Outdoor air temperature sensor",
+    observation_type="http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    unit_of_measurement=uom,
+)
+```
+
+### Full Datastream creation example
+
+<CodeGroup>
+```python Create a Datastream with a UnitOfMeasurement
+import frost_sta_client as fsc
+from geojson import Point
+
+service = fsc.SensorThingsService("https://example.com/FROST-Server/v1.1")
+
+# Build the unit
+uom = fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+    name="Degree Celsius",
+    symbol="°C",
+    definition="http://qudt.org/vocab/unit/DEG_C",
+)
+
+# Associate with a Datastream
+datastream = fsc.Datastream(
+    name="Air Temperature — Roof Station",
+    description="Measures outdoor air temperature at roof level",
+    observation_type="http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement",
+    unit_of_measurement=uom,
+)
+
+# Link the Datastream to an existing Thing and Sensor
+datastream.thing   = service.things().find(1)
+datastream.sensor  = service.sensors().find(1)
+
+service.create(datastream)
+print("Datastream created with id:", datastream.id)
+```
+
+```python Inspect serialized form
+import json
+
+uom = fsc.model.ext.unitofmeasurement.UnitOfMeasurement(
+    name="Metre per second",
+    symbol="m/s",
+    definition="http://qudt.org/vocab/unit/M-PER-SEC",
+)
+
+print(json.dumps(uom.__getstate__(), ensure_ascii=False, indent=2))
+# {
+#   "name": "Metre per second",
+#   "symbol": "m/s",
+#   "definition": "http://qudt.org/vocab/unit/M-PER-SEC"
+# }
+```
+
+```python Equality comparison
+uom_a = fsc.model.ext.unitofmeasurement.UnitOfMeasurement("Pascal", "Pa", "http://qudt.org/vocab/unit/PA")
+uom_b = fsc.model.ext.unitofmeasurement.UnitOfMeasurement("Pascal", "Pa", "http://qudt.org/vocab/unit/PA")
+uom_c = fsc.model.ext.unitofmeasurement.UnitOfMeasurement("Bar", "bar", "http://qudt.org/vocab/unit/BAR")
+
+print(uom_a == uom_b)  # True  — identical field values
+print(uom_a == uom_c)  # False — different name, symbol, definition
+print(uom_a == None)   # False
+```
+</CodeGroup>
+
+<Tip>
+  Use URIs from a well-known vocabulary like [QUDT](http://www.qudt.org/) or [UCUM](https://ucum.org/) for the `definition` field. Consistent, resolvable URIs make your data interoperable with other SensorThings API consumers and allow automated unit-conversion tools to recognise the unit.
+</Tip>
+
+<Note>
+  All three properties accept `None` as well as `str`. When a `Datastream` is read back from the server and a field is absent from the JSON, `__setstate__` sets the corresponding attribute to `None` rather than raising an error.
+</Note>

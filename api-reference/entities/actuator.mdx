@@ -1,0 +1,180 @@
+---
+title: "Actuator Entity API Reference"
+sidebarTitle: "Actuator"
+description: "API reference for the Actuator entity — part of the SensorThings Tasking extension, representing a device that can receive and execute tasking commands."
+---
+
+The `Actuator` entity is part of the OGC SensorThings API Tasking extension (Part 2). Where the core API focuses on reading sensor data, the Tasking extension adds the ability to send commands to physical or virtual devices that can act on the world. An `Actuator` represents such a device — a valve controller, a relay switch, an alarm trigger, or any other addressable actuating mechanism. Each `Actuator` is linked to one or more `TaskingCapability` entities that define what commands it accepts and what parameters those commands require.
+
+`Actuator` inherits from `Entity`, providing `id`, `self_link`, and `service`. The `metadata` property is mandatory according to the SensorThings standard — setting it to `None` triggers a `Warning`. Like `Sensor`, the string properties (`name`, `description`, `encoding_type`) do not accept `None` and raise `ValueError` if assigned anything other than a `str`.
+
+<Note>
+  `metadata` is a required field in the OGC SensorThings API Tasking extension. It should contain a URL pointing to the actuator's documentation, a JSON specification of its command interface, or similar supplementary information.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.actuator import Actuator
+
+Actuator(
+    name='',
+    description='',
+    encoding_type='',
+    tasking_capabilities=None,
+    metadata='',
+    properties=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the actuator (e.g., `'Irrigation Valve Zone A'`). Must be `str`; raises `ValueError` for any other type including `None`.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A description of what the actuator does and how it operates. Must be `str`; raises `ValueError` otherwise.
+</ParamField>
+
+<ParamField path="encoding_type" type="str" default='""'>
+  The MIME type of the `metadata` payload. Common values: `'application/pdf'`, `'text/html'`, `'application/json'`. Must be `str`; raises `ValueError` otherwise. Serialized as `encodingType`.
+</ParamField>
+
+<ParamField path="tasking_capabilities" type="list[TaskingCapability] | EntityList[TaskingCapability] | None" default="None">
+  The `TaskingCapability` entities that define what commands this actuator can receive. Accepts a plain list or `EntityList`; raises `ValueError` if entries are not `TaskingCapability` instances.
+</ParamField>
+
+<ParamField path="metadata" type="JSON-serializable" default='""'>
+  Supplementary information about the actuator — typically a URL string pointing to its documentation or a JSON object describing its command interface. Any JSON-serializable value is accepted. Raises `TypeError` if not JSON-serializable. Setting to `None` raises a `Warning` because it is a mandatory field.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata for the actuator. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str">
+  Name of the actuator. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="description" type="str">
+  Description of the actuator's function. Validated as `str` on set.
+</ResponseField>
+
+<ResponseField name="encoding_type" type="str">
+  MIME type of the `metadata` payload. Serialized as `encodingType` in JSON.
+</ResponseField>
+
+<ResponseField name="metadata" type="JSON-serializable">
+  Documentation or specification for the actuator. JSON-serializable. Serialized as `metadata` in JSON.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary extra metadata dictionary. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="tasking_capabilities" type="EntityList[TaskingCapability] | None">
+  TaskingCapabilities linked to this actuator, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+<ResponseField name="get_tasking_capabilities()" type="Query[TaskingCapability]">
+  Returns a `Query` for all `TaskingCapability` entities associated with this `Actuator`. Requires the entity to be bound to a `service`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create an Actuator with a URL metadata reference
+from frost_sta_client.model.actuator import Actuator
+
+actuator = Actuator(
+    name='Irrigation Valve Zone A',
+    description='Solenoid valve controlling drip irrigation in Zone A of the greenhouse.',
+    encoding_type='text/html',
+    metadata='https://example.com/actuators/solenoid-valve-spec.html',
+    properties={
+        'manufacturer': 'ValveCo',
+        'model': 'SV-250',
+        'zone': 'A',
+        'voltage': '24V DC'
+    }
+)
+```
+
+```python Create an Actuator with structured JSON metadata
+from frost_sta_client.model.actuator import Actuator
+
+actuator = Actuator(
+    name='HVAC Fan Speed Controller',
+    description='Variable-speed fan drive unit for supply air fan in AHU-3.',
+    encoding_type='application/json',
+    metadata={
+        'commands': ['SET_SPEED', 'GET_STATUS', 'STOP'],
+        'speedRange': {'min': 0, 'max': 100, 'unit': '%'},
+        'protocol': 'Modbus RTU'
+    }
+)
+```
+
+```python Create via service
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+actuator = frost_sta_client.Actuator(
+    name='LED Dimmer Panel 3B',
+    description='PWM-based LED dimmer for ceiling lights in corridor 3B.',
+    encoding_type='application/json',
+    metadata={
+        'brightnessRange': {'min': 0, 'max': 255},
+        'interface': 'DALI',
+        'address': 42
+    },
+    properties={'floor': 3, 'zone': 'corridor-B'}
+)
+service.create(actuator)
+print(actuator.id)
+print(actuator.self_link)
+```
+
+```python Navigate to TaskingCapabilities
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+actuator = service.actuators().find(2)
+
+for tc in actuator.get_tasking_capabilities().query().list().entities:
+    print(tc.name, tc.tasking_parameters)
+```
+</CodeGroup>
+
+<Tip>
+  Use structured JSON for `metadata` when the actuator has a machine-readable command interface specification. This enables client applications to dynamically discover available commands and required parameters without hardcoding them.
+</Tip>
+
+<Warning>
+  The `name`, `description`, and `encoding_type` setters do not accept `None` — they raise `ValueError` immediately. If you are constructing an `Actuator` incrementally, always initialise these with empty strings `''` rather than `None`.
+</Warning>

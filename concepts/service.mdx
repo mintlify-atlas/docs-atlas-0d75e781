@@ -1,0 +1,226 @@
+---
+title: "SensorThingsService: The FROST Client Entry Point"
+sidebarTitle: "Service"
+description: "SensorThingsService is the FROST Python Client entry point. Learn how it handles connections, authentication, proxies, and DAO accessors per entity type."
+---
+
+`SensorThingsService` is the single object you create when connecting to a SensorThings endpoint. It holds the base URL, manages optional authentication and proxy settings, and provides DAO (Data Access Object) accessors for every entity type. Every CRUD operation, every query, and every navigation to a related-entity collection flows through one instance of this class.
+
+## Constructing a Service
+
+```python
+import frost_sta_client as fsc
+
+# Unauthenticated connection
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1")
+
+# With HTTP Basic authentication
+auth = fsc.AuthHandler(username="admin", password="secret")
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1", auth_handler=auth)
+
+# With an HTTP proxy
+proxies = {"http": "http://proxy.example.com:8080", "https": "http://proxy.example.com:8080"}
+service = fsc.SensorThingsService("http://server/FROST-Server/v1.1", proxies=proxies)
+```
+
+## Constructor Parameters
+
+<ParamField path="url" type="str" required>
+  The base URL of the SensorThings API endpoint, e.g. `http://server/FROST-Server/v1.1`. Internally the URL is parsed by [furl](https://github.com/gruns/furl). A `ValueError` is raised if the value cannot be parsed as a valid URL.
+</ParamField>
+
+<ParamField path="auth_handler" type="AuthHandler | None" default="None">
+  An `AuthHandler` instance that injects authentication credentials into every outgoing request. Must be an instance of `frost_sta_client.service.auth_handler.AuthHandler` or `None`. Passing any other type raises a `ValueError`.
+</ParamField>
+
+<ParamField path="proxies" type="dict | None" default="None">
+  A dictionary of proxies passed directly to `requests.request`. Must follow the [requests proxy format](https://docs.python-requests.org/en/latest/user/advanced/#proxies): keys are scheme names (`"http"`, `"https"`), values are proxy URLs. Must be a `dict` or `None`; any other type raises a `ValueError`.
+</ParamField>
+
+## DAO Accessor Methods
+
+Each accessor method instantiates a type-specific DAO and returns it. DAOs expose `find(id)`, `create(entity)`, `update(entity)`, `patch(entity, patches)`, `delete(entity)`, and `query()`. The accessor does not perform any network call by itself.
+
+<CardGroup cols={2}>
+  <Card title="things()" icon="microchip">
+    Returns a `ThingDao` for the `Things` collection.
+  </Card>
+  <Card title="datastreams()" icon="wave-square">
+    Returns a `DatastreamDao` for the `Datastreams` collection.
+  </Card>
+  <Card title="observations()" icon="chart-line">
+    Returns an `ObservationDao` for the `Observations` collection.
+  </Card>
+  <Card title="sensors()" icon="bolt">
+    Returns a `SensorDao` for the `Sensors` collection.
+  </Card>
+  <Card title="locations()" icon="location-dot">
+    Returns a `LocationDao` for the `Locations` collection.
+  </Card>
+  <Card title="observed_properties()" icon="magnifying-glass-chart">
+    Returns an `ObservedPropertyDao` for the `ObservedProperties` collection.
+  </Card>
+  <Card title="features_of_interest()" icon="map-pin">
+    Returns a `FeaturesOfInterestDao` for the `FeaturesOfInterest` collection.
+  </Card>
+  <Card title="historical_locations()" icon="clock-rotate-left">
+    Returns a `HistoricalLocationDao` for the `HistoricalLocations` collection.
+  </Card>
+  <Card title="multi_datastreams()" icon="layer-group">
+    Returns a `MultiDatastreamDao` for the `MultiDatastreams` collection.
+  </Card>
+  <Card title="actuators()" icon="gear">
+    Returns an `ActuatorDao` for the `Actuators` collection (tasking extension).
+  </Card>
+  <Card title="tasks()" icon="play">
+    Returns a `TaskDao` for the `Tasks` collection (tasking extension).
+  </Card>
+  <Card title="tasking_capabilities()" icon="list-check">
+    Returns a `TaskingCapabilityDao` for the `TaskingCapabilities` collection.
+  </Card>
+</CardGroup>
+
+## Direct CRUD Methods
+
+`SensorThingsService` also exposes four convenience CRUD methods that delegate to the appropriate DAO automatically, letting you avoid calling `get_dao` yourself.
+
+<Tabs>
+  <Tab title="create">
+    ```python
+    service.create(entity)
+    ```
+    POSTs the entity to the correct collection URL. After a successful response the server-assigned `@iot.id` is extracted from the `Location` header and written back to `entity.id`. The entity's `service` reference is also set so subsequent operations work immediately.
+
+    ```python
+    thing = fsc.Thing(name="Weather Station 01", description="Rooftop weather station")
+    service.create(thing)
+    print(thing.id)  # populated by the server response
+    ```
+  </Tab>
+  <Tab title="update">
+    ```python
+    service.update(entity)
+    ```
+    PUTs the full entity representation to `CollectionName(id)`. The entity must have a non-empty `id`. Use this when you want to replace all properties of an existing entity.
+
+    ```python
+    thing = service.things().find(42)
+    thing.description = "Updated description"
+    service.update(thing)
+    ```
+  </Tab>
+  <Tab title="patch">
+    ```python
+    service.patch(entity, patches)
+    ```
+    Sends a JSON-Patch (`application/json-patch+json`) request to `CollectionName(id)`. `patches` must be either a `jsonpatch.JsonPatch` object or a list of patch-operation dicts. Use this for partial updates — only the specified fields are changed on the server.
+
+    ```python
+    import jsonpatch
+
+    thing = service.things().find(42)
+    patch_ops = [{"op": "replace", "path": "/description", "value": "Patched description"}]
+    service.patch(thing, patch_ops)
+    ```
+  </Tab>
+  <Tab title="delete">
+    ```python
+    service.delete(entity)
+    ```
+    Sends a DELETE request to `CollectionName(id)`. The entity must have a valid `id`.
+
+    ```python
+    thing = service.things().find(42)
+    service.delete(thing)
+    ```
+  </Tab>
+</Tabs>
+
+## The execute() Method
+
+```python
+service.execute(method, url, **kwargs)
+```
+
+`execute` is the low-level transport method used internally by all DAOs and queries. It calls `requests.request(method, url, ...)` with proxies applied, and optionally injects the auth handler's credentials via the `auth` keyword argument. After receiving a response it calls `response.raise_for_status()`, re-raising any `HTTPError` for the caller to handle.
+
+<Note>
+  You rarely need to call `execute` directly. It is documented here for completeness and for cases where you need to hit a non-standard endpoint on the same server. All standard CRUD and query operations use it automatically.
+</Note>
+
+<ParamField path="method" type="str" required>
+  HTTP method string: `"get"`, `"post"`, `"put"`, `"patch"`, or `"delete"`.
+</ParamField>
+
+<ParamField path="url" type="str | furl" required>
+  The full URL to request. DAOs construct this using the helper methods below.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded verbatim to `requests.request`, such as `json=`, `headers=`, or `timeout=`.
+</ParamField>
+
+## Path Helper Methods
+
+Two helper methods on the service are used internally by DAOs and the query engine to construct navigation-link URLs.
+
+### get_path(parent, relation)
+
+Returns a relative path string of the form `ParentType(id)/Relation` when `parent` is an entity, or simply `Relation` when `parent` is `None`. String IDs are quoted: `ParentType('string-id')/Relation`.
+
+```python
+# parent is a Datastream with id=5
+path = service.get_path(datastream, "Observations")
+# → "Datastreams(5)/Observations"
+
+# parent is None — top-level collection
+path = service.get_path(None, "Things")
+# → "Things"
+```
+
+### get_full_path(parent, relation)
+
+Combines the service's base URL with `get_path(parent, relation)`, handling the trailing-slash boundary between the base URL and the relative path. Returns a `furl` object ready for query-parameter injection.
+
+```python
+full_url = service.get_full_path(datastream, "Observations")
+# → furl("http://server/FROST-Server/v1.1/Datastreams(5)/Observations")
+```
+
+<Tip>
+  When you call `datastream.get_observations().query()`, the resulting `Query` object internally holds the Datastream as its `parent`. When `.list()` is called, the query calls `service.get_full_path(datastream, "Observations")` to build the correct scoped URL automatically.
+</Tip>
+
+## Complete Connection Example
+
+```python
+import frost_sta_client as fsc
+from geojson import Point
+
+# 1. Connect
+auth = fsc.AuthHandler(username="admin", password="admin")
+service = fsc.SensorThingsService(
+    "http://my-frost-server.example.com/FROST-Server/v1.1",
+    auth_handler=auth
+)
+
+# 2. Create a location and a thing in one request (deep insert)
+location = fsc.Location(
+    name="Berlin HQ",
+    description="Main office rooftop",
+    location=Point((13.405, 52.520)),
+    encoding_type="application/geo+json"
+)
+thing = fsc.Thing(
+    name="Rooftop Station Alpha",
+    description="Primary weather monitoring device",
+    properties={"owner": "Ops Team", "floor": "roof"}
+)
+thing.locations = [location]
+service.create(thing)
+
+# 3. Query to verify
+result = service.things().query().filter("name eq 'Rooftop Station Alpha'").list()
+for t in result:
+    print(t.id, t.name)
+```

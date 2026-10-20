@@ -1,0 +1,171 @@
+---
+title: "ObservedProperty Entity API Reference"
+sidebarTitle: "ObservedProperty"
+description: "API reference for the ObservedProperty entity — the physical phenomenon measured by a Datastream, identified by name, definition URI, and description."
+---
+
+The `ObservedProperty` entity characterises the physical or abstract phenomenon that a `Datastream` measures. While a `Sensor` describes the instrument doing the measuring, the `ObservedProperty` answers the question of *what* is being measured — air temperature, relative humidity, particulate concentration, and so on. A single `ObservedProperty` can be shared across multiple `Datastream` and `MultiDatastream` entities, making it a reusable vocabulary term.
+
+`ObservedProperty` inherits from `Entity`, providing the `id`, `self_link`, and `service` base attributes. Its `definition` field is intended to hold a URI pointing to a well-known ontology or controlled vocabulary entry, ensuring interoperability between different deployments.
+
+<Note>
+  The `definition` property should be a resolvable URI referencing a controlled vocabulary — for example, an entry from the OGC Observable Property or QUDT units ontology. This enables semantic interoperability between SensorThings deployments.
+</Note>
+
+## Class signature
+
+```python
+from frost_sta_client.model.observedproperty import ObservedProperty
+
+ObservedProperty(
+    name='',
+    definition='',
+    description='',
+    datastreams=None,
+    properties=None,
+    multi_datastreams=None,
+    **kwargs  # passed to Entity: id, self_link, service
+)
+```
+
+## Constructor parameters
+
+<ParamField path="name" type="str" default='""'>
+  A human-readable name for the observed phenomenon (e.g., `'Air Temperature'`, `'Relative Humidity'`). Must be `str`; raises `ValueError` otherwise. `None` is allowed and sets the internal value to `None`.
+</ParamField>
+
+<ParamField path="definition" type="str" default='""'>
+  A URI pointing to the formal definition of the observed property in an ontology or vocabulary. Must be `str`; raises `ValueError` otherwise. `None` is allowed.
+</ParamField>
+
+<ParamField path="description" type="str" default='""'>
+  A plain-language description of the property and how it should be interpreted. Must be `str`; raises `ValueError` otherwise. `None` is allowed.
+</ParamField>
+
+<ParamField path="datastreams" type="list[Datastream] | EntityList[Datastream] | None" default="None">
+  `Datastream` entities that measure this property. Accepts a plain list of `Datastream` objects or an `EntityList`; raises `ValueError` if entries are not `Datastream` instances.
+</ParamField>
+
+<ParamField path="properties" type="dict | None" default="{}">
+  Arbitrary key-value metadata. Must be a `dict`; raises `ValueError` otherwise. Defaults to `{}` when `None` is passed to the constructor.
+</ParamField>
+
+<ParamField path="multi_datastreams" type="list[MultiDatastream] | EntityList[MultiDatastream] | None" default="None">
+  `MultiDatastream` entities that include this property. Accepts a plain list or an `EntityList`.
+</ParamField>
+
+<ParamField path="**kwargs" type="any">
+  Additional keyword arguments forwarded to `Entity.__init__`. Supports `id` (`int` or `str`), `self_link` (`str`), and `service` (`SensorThingsService`).
+</ParamField>
+
+## Inherited base properties
+
+<ResponseField name="id" type="int | str | None">
+  The `@iot.id` assigned by the server after creation.
+</ResponseField>
+
+<ResponseField name="self_link" type="str">
+  The `@iot.selfLink` URL of this entity on the server.
+</ResponseField>
+
+<ResponseField name="service" type="SensorThingsService | None">
+  The bound `SensorThingsService` instance. Required before calling navigation methods.
+</ResponseField>
+
+## Instance properties
+
+<ResponseField name="name" type="str | None">
+  Human-readable name of the phenomenon. Validated as `str` on set; `None` is permitted.
+</ResponseField>
+
+<ResponseField name="definition" type="str | None">
+  URI pointing to the formal definition of this property. Validated as `str` on set; `None` is permitted. Serialized as `definition` in JSON.
+</ResponseField>
+
+<ResponseField name="description" type="str | None">
+  Plain-language description of the property. Validated as `str` on set; `None` is permitted.
+</ResponseField>
+
+<ResponseField name="properties" type="dict">
+  Arbitrary key-value metadata. When set to `None` the value resets to `{}`. Validated as `dict` on set.
+</ResponseField>
+
+<ResponseField name="datastreams" type="EntityList[Datastream] | None">
+  Datastreams that measure this property, wrapped in an `EntityList`.
+</ResponseField>
+
+<ResponseField name="multi_datastreams" type="EntityList[MultiDatastream] | None">
+  MultiDatastreams that include this property, wrapped in an `EntityList`.
+</ResponseField>
+
+## Navigation methods
+
+Navigation methods require the entity to be bound to a `service` instance.
+
+<ResponseField name="get_datastreams()" type="Query[Datastream]">
+  Returns a `Query` for all `Datastream` entities that reference this `ObservedProperty`.
+</ResponseField>
+
+<ResponseField name="get_multi_datastreams()" type="Query[MultiDatastream]">
+  Returns a `Query` for all `MultiDatastream` entities that include this `ObservedProperty`.
+</ResponseField>
+
+## Usage examples
+
+<CodeGroup>
+```python Create an ObservedProperty with a definition URI
+from frost_sta_client.model.observedproperty import ObservedProperty
+
+op = ObservedProperty(
+    name='Air Temperature',
+    definition='http://vocab.nerc.ac.uk/collection/P07/current/CFSN0023/',
+    description='Temperature of the air at the measurement point, in degrees Celsius.'
+)
+```
+
+```python Create via service
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+
+op = frost_sta_client.ObservedProperty(
+    name='Relative Humidity',
+    definition='http://vocab.nerc.ac.uk/collection/P07/current/CFSN0430/',
+    description='Ratio of the partial pressure of water vapour to the saturation vapour pressure at the same temperature.',
+    properties={'unit': '%', 'discipline': 'Meteorology'}
+)
+service.create(op)
+print(op.id)       # assigned by server
+print(op.self_link)
+```
+
+```python Query all Datastreams for a given ObservedProperty
+import frost_sta_client
+
+service = frost_sta_client.SensorThingsService('https://example.org/FROST-Server/v1.1')
+op = service.observed_properties().find(2)
+
+datastreams = op.get_datastreams().query().list()
+for ds in datastreams.entities:
+    print(ds.name, '—', ds.thing.name if ds.thing else 'no thing')
+```
+
+```python Use with extra properties metadata
+from frost_sta_client.model.observedproperty import ObservedProperty
+
+op = ObservedProperty(
+    name='CO2 Concentration',
+    definition='http://purl.obolibrary.org/obo/ENVO_01001864',
+    description='Molar concentration of carbon dioxide in ambient air.',
+    properties={
+        'symbol': 'ppm',
+        'referenceStandard': 'NDIR',
+        'discipline': 'Air Quality'
+    }
+)
+```
+</CodeGroup>
+
+<Tip>
+  Reuse `ObservedProperty` entities across many `Datastream` objects rather than creating duplicates. A single `ObservedProperty` for "Air Temperature" shared by hundreds of datastreams is the correct pattern and makes cross-deployment semantic queries possible.
+</Tip>
